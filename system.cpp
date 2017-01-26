@@ -225,62 +225,21 @@ uint64_t System::load_elf(const char* filename) {
         exit(-1);
     }
 
-    // get the elf header
-    GElf_Ehdr elf_header;
-    gelf_getehdr(elf, &elf_header);
-    
-    // get program headers
-    size_t phnum = elf_header.e_phnum;
-    
-    // iterate over program headers
-    for (unsigned header = 0; header < phnum; header++) {
-        
-        // get the header data
-        GElf_Phdr phdr;
-        gelf_getphdr(elf, header, &phdr);
-        
-        if (PT_LOAD == phdr.p_type) {
-            if ((phdr.p_vaddr + phdr.p_memsz) > ramsize) {
-                cerr << "Not enough 'physical' ram" << endl;
-                exit(-1);
-            }
-            
-            // initialize the memory segment to zero
-            memset(ram + phdr.p_vaddr, 0, phdr.p_memsz);
-            
-            // copy segment content from file to memory
-            off_t off = lseek(fileDescriptor, phdr.p_offset, SEEK_SET);
-            assert(-1 != off);
-            
-            size_t len = read(fileDescriptor, (void*)(ram + phdr.p_vaddr), phdr.p_filesz);
-            assert(len == phdr.p_filesz);
-            
-            if (max_elf_addr < (phdr.p_vaddr + phdr.p_filesz))
-                max_elf_addr = (phdr.p_vaddr + phdr.p_filesz);
-
-            cerr << "Loaded ELF header #" << header << "."
-                 << " offset: "   << phdr.p_offset
-                 << " filesize: " << phdr.p_filesz
-                 << " memsize: "  << phdr.p_memsz
-                 << " vaddr: "    << phdr.p_vaddr
-                 << " paddr: "    << phdr.p_paddr
-                 << " align: "    << phdr.p_align
-                 << endl;
-        }
-        else if (phdr.p_type == PT_GNU_STACK) {
-            // do nothing
-        } else if (phdr.p_type == 0x4) {
-            // do nothing
-        } else {
-            cerr << "Unexpected ELF header " << phdr.p_type << endl;
-            exit(-1);
-        }
+    Elf_Scn* scn = NULL;
+    while ((scn = elf_nextscn(elf, scn)) != NULL) {
+      GElf_Shdr shdr;
+      gelf_getshdr(scn, &shdr);
+      if (shdr.sh_type != SHT_PROGBITS) continue;
+      if (!(shdr.sh_flags & SHF_EXECINSTR)) continue;
+      // copy segment content from file to memory
+      off_t off = lseek(fileDescriptor, shdr.sh_offset, SEEK_SET);
+      assert(-1 != off);
+      size_t len = read(fileDescriptor, (void*)(ram + 0/* addr */), shdr.sh_size);
+      assert(len == shdr.sh_size);
+      break; // just load the first one
     }
-    
-    // page-align max_elf_addr
-    max_elf_addr = ((max_elf_addr + 4095) / 4096) * 4096;
     
     // finalize
     close(fileDescriptor);
-    return elf_header.e_entry;
+    return 0 /* entry point */;
 }
