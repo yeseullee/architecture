@@ -23,6 +23,16 @@ module top
   input  [BUS_TAG_WIDTH-1:0] bus_resptag
 );
 
+  logic [63:0] pc;
+
+  always @ (posedge clk)
+    if (reset) begin
+      pc <= entry;
+    end else begin
+      $display("Hello World!  @ %x", pc);
+      $finish;
+    end
+
   initial begin
     $display("Initializing top, entry point = 0x%x", entry);
   end
