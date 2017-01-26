@@ -25,8 +25,9 @@ run: obj_dir/Vtop
 clean:
 	rm -rf obj_dir/ dramsim2/results trace.vcd core 
 
-SUBMIT_SUFFIX=wp1
+SUBMITTO=/submit
+SUBMIT_SUFFIX=-wp1
 submit: clean
 	rm -f $(USER).tgz
 	tar -czvf $(USER).tgz --exclude=.*.sw? --exclude=$(USER).tgz* --exclude=*~ --exclude=.git *
-	cp $(USER).tgz /submit/$(USER)-$(SUBMIT_SUFFIX).tgz
+	cp -v $(USER).tgz $(SUBMITTO)/$(USER)$(SUBMIT_SUFFIX)=`date +%F=%T`.tgz
