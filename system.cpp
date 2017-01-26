@@ -125,7 +125,7 @@ void System::tick(int clk) {
         if (rx_count) {
             switch(cmd) {
             case MEMORY:
-                *((uint64_t*)(&ram[((xfer_addr&(~63))+((xfer_addr + ((8-rx_count)*8))&63))])) = cse502_be64toh(top->bus_req);    // critical word first
+                *((uint64_t*)(&ram[xfer_addr + (8-rx_count)*8])) = cse502_be64toh(top->bus_req);
                 break;
             case MMIO:
                 assert(xfer_addr < ramsize);
