@@ -43,7 +43,7 @@ double sc_time_stamp() {
 }
 
 System::System(Vtop* top, unsigned ramsize, const char* ramelf, int ps_per_clock)
-    : top(top), ramsize(ramsize), max_elf_addr(0), show_console(false), rx_count(0)
+    : top(top), ramsize(ramsize), max_elf_addr(0), show_console(false), interrupts(0), rx_count(0)
 {
     ram = (char*) malloc(ramsize);
     assert(ram);
@@ -125,7 +125,7 @@ void System::tick(int clk) {
         if (rx_count) {
             switch(cmd) {
             case MEMORY:
-                *((uint64_t*)(&ram[xfer_addr + (8-rx_count)*8])) = cse502_be64toh(top->bus_req);
+                *((uint64_t*)(&ram[xfer_addr + (8-rx_count)*8])) = top->bus_req;
                 break;
             case MMIO:
                 assert(xfer_addr < ramsize);
@@ -187,13 +187,11 @@ void System::tick(int clk) {
 }
 
 void System::dram_read_complete(unsigned id, uint64_t address, uint64_t clock_cycle) {
-    
     map<uint64_t, int>::iterator tag = addr_to_tag.find(address);
     assert(tag != addr_to_tag.end());
-    
     for(int i = 0; i < 64; i += 8) {
         //cerr << "fill data from " << std::hex << (address+(i&63)) <<  ": " << tx_queue.rbegin()->first << " on tag " << tag->second << endl;
-        tx_queue.push_back(make_pair(cse502_be64toh(*((uint64_t*)(&ram[((address&(~63))+((address+i)&63))]))),tag->second));
+        tx_queue.push_back(make_pair(*((uint64_t*)(&ram[((address&(~63))+((address+i)&63))])),tag->second));
     }
     addr_to_tag.erase(tag);
 }
