@@ -1,0 +1,6 @@
+`define SYSBUS_READ    1'b1
+`define SYSBUS_WRITE   1'b0
+`define SYSBUS_MEMORY  4'b0001
+`define SYSBUS_MMIO    4'b0011
+`define SYSBUS_PORT    4'b0100
+`define SYSBUS_IRQ     4'b1110
