@@ -25,6 +25,8 @@ module top
 
   logic [63:0] pc;
   enum { INIT=2'b00, FETCH=2'b01, WAIT=2'b10, DECODE=2'b11, IDLE=3'b100} state, next_state;
+  reg [64:0] instr;
+
 /*
   always @ (posedge clk)
     if (reset) begin
@@ -59,7 +61,7 @@ module top
                  $display("fetch - requesting");
                  bus_reqcyc = 1;
                  bus_req = pc;
-                 bus_reqtag = {`SYSBUS_MEMORY,8'b0};
+                 bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
                end
                next_state = WAIT;
              end
@@ -67,6 +69,8 @@ module top
                $display("waiting");
                if(bus_respcyc == 1) begin
                  $display("read");
+                 bus_respack = 1;
+                 instr = bus_resp;
                  next_state = DECODE;
                end
                else begin
@@ -74,7 +78,15 @@ module top
                end
              end
       //WAIT: next_state = DECODE;
-      DECODE: next_state = IDLE;
+      DECODE: begin
+                if(instr[31:0] == 0 | instr[63:32] == 0) begin
+                  next_state = IDLE;
+                end
+                $display("instr1 %h", instr[31:0]);
+                $display("instr2 %h", instr[63:32]);
+                next_state = IDLE;
+              end
+
       //default next_state = IDLE;
     endcase
   end
