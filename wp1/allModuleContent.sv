@@ -2,7 +2,7 @@
 
 module uj_instr
 	(
-	  //input  clk,
+	  input  clk,
 	  //       reset,
 
 	  // instruction to read
@@ -13,7 +13,23 @@ module uj_instr
 	  output [4:0] rd
 	);
 
-	logic [6:0] opcode = instruction[6:0];
+	logic [6:0] opcode;
+	logic [31:0] prev_instr;
+	logic [31:0] prev_instr_wire;
+
+	always_comb begin
+		if(prev_instr == instruction) begin
+			opcode = instruction[6:0];
+		end
+		else begin
+			opcode = 7'b0000000;
+		end
+		prev_instr_wire = instruction;
+	end
+
+	always_ff @ (posedge clk) begin
+		prev_instr = prev_instr_wire;
+	end
 
 	always_comb begin
 		rd = instruction[11:7];
@@ -25,7 +41,7 @@ endmodule
 
 module u_instr
 	(
-	  //input  clk,
+	  input  clk,
 	  //       reset,
 
 	  // instruction to read
@@ -36,7 +52,23 @@ module u_instr
 	  output [4:0] rd
 	);
 
-	logic [6:0] opcode = instruction[6:0];
+	logic [6:0] opcode;
+	logic [31:0] prev_instr;
+	logic [31:0] prev_instr_wire;
+
+	always_comb begin
+		if(prev_instr == instruction) begin
+			opcode = instruction[6:0];
+		end
+		else begin
+			opcode = 7'b0000000;
+		end
+		prev_instr_wire = instruction;
+	end
+
+	always_ff @ (posedge clk) begin
+		prev_instr = prev_instr_wire;
+	end
 
 	always_comb begin
 		rd = instruction[11:7];
@@ -51,7 +83,7 @@ endmodule
 
 module sb_instr
 	(
-	  //input  clk,
+	  input  clk,
 	  //       reset,
 
 	  // instruction to read
@@ -64,8 +96,24 @@ module sb_instr
 	  output [6:0] offset
 	);
 
-	logic [6:0] opcode = instruction[6:0];
+	logic [6:0] opcode;
 	logic [2:0] func3 = instruction[14:12];
+	logic [31:0] prev_instr;
+	logic [31:0] prev_instr_wire;
+
+	always_comb begin
+		if(prev_instr == instruction) begin
+			opcode = instruction[6:0];
+		end
+		else begin
+			opcode = 7'b0000000;
+		end
+		prev_instr_wire = instruction;
+	end
+
+	always_ff @ (posedge clk) begin
+		prev_instr = prev_instr_wire;
+	end
 
 	always_comb begin
 		if(opcode != 7'b1100011)
@@ -88,7 +136,7 @@ endmodule
 
 module s_instr
 	(
-	  //input  clk,
+	  input  clk,
 	  //       reset,
 
 	  // instruction to read
@@ -101,7 +149,23 @@ module s_instr
 	);
 
 	logic [2:0] func3 = instruction[14:12];
-	logic [6:0] opcode = instruction[6:0];
+	logic [6:0] opcode;
+	logic [31:0] prev_instr;
+	logic [31:0] prev_instr_wire;
+
+	always_comb begin
+		if(prev_instr == instruction) begin
+			opcode = instruction[6:0];
+		end
+		else begin
+			opcode = 7'b0000000;
+		end
+		prev_instr_wire = instruction;
+	end
+
+	always_ff @ (posedge clk) begin
+		prev_instr = prev_instr_wire;
+	end
 
 	always_comb begin
 		if(opcode != 7'b0100011)
@@ -121,7 +185,7 @@ endmodule
 
 module r_instr
 	(
-	  //input  clk,
+	  input  clk,
 	  //       reset,
 
 	  // instruction to read
@@ -133,9 +197,25 @@ module r_instr
 	  output [4:0] rd
 	);
 
-	logic [6:0] opcode = instruction[6:0];
+	logic [6:0] opcode;
 	logic [2:0] func3 = instruction[14:12];
 	logic [6:0] func7 = instruction[31:25];
+	logic [31:0] prev_instr;
+	logic [31:0] prev_instr_wire;
+
+	always_comb begin
+		if(prev_instr == instruction) begin
+			opcode = instruction[6:0];
+		end
+		else begin
+			opcode = 7'b0000000;
+		end
+		prev_instr_wire = instruction;
+	end
+
+	always_ff @ (posedge clk) begin
+		prev_instr = prev_instr_wire;
+	end
 
 	always_comb begin
 		rs1 = instruction[19:15];
@@ -229,7 +309,7 @@ module i_instr
 	logic [31:0] prev_instr;
 	logic [31:0] wire_prev_instr;
 
-	//variables for shiting
+	//variables for shifting
 	//TODO: work shifting in below
 	logic [6:0] func7 = instruction[31:25];
 	logic [4:0] shamt = instruction[24:20];
