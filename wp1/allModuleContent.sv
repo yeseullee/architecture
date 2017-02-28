@@ -13,12 +13,12 @@ module uj_instr
 	  output [4:0] rd
 	);
 
-	logic[6:0] opcode = instruction[6:0];
+	logic [6:0] opcode = instruction[6:0];
 
 	always_comb begin
 		rd = instruction[11:7];
 		immediate = instruction[31:12];
-		if(opcode == 7'b1100111)
+		if(opcode == 7'b1101111)
 			$display("jal %d", immediate);
 	end
 endmodule
@@ -36,7 +36,7 @@ module u_instr
 	  output [4:0] rd
 	);
 
-	logic opcode = instruction[6:0];
+	logic [6:0] opcode = instruction[6:0];
 
 	always_comb begin
 		rd = instruction[11:7];
@@ -44,7 +44,7 @@ module u_instr
 		case(opcode)
 			7'b0110111: $display("lui $%d, %d", rd, immediate);
 			7'b0010111: $display("auipc $%d, %d", rd, immediate);
-			default: $display("");
+//			default: $display("%b", opcode);
 		endcase
 	end
 endmodule
@@ -81,7 +81,7 @@ module sb_instr
 			3'b101: $display("bge $%d, $%d, %d", rs1, rs2, offset);
 			3'b110: $display("bltu $%d, $%d, %d", rs1, rs2, offset);
 			3'b111: $display("bgeu $%d, $%d, %d", rs1, rs2, offset);
-			default: $display(""); 
+//			default: $display("%b", opcode);
 		endcase
 	end
 endmodule
@@ -114,7 +114,7 @@ module s_instr
 			3'b001: $display("sh $%d, %d($%d)", rs1, offset, rs2);
 			3'b010: $display("sw $%d, %d($%d)", rs1, offset, rs2);
 			3'b011: $display("sd $%d, %d($%d)", rs1, offset, rs2);
-			default: $display("");
+//			default: $display("%b", opcode);
 		endcase
 	end
 endmodule
@@ -148,7 +148,7 @@ module r_instr
 							7'b0000000: $display("addw $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0000001: $display("mulw $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0100000: $display("subw $%d, $%d, $%d", rd, rs1, rs2);
-							default: $display("");
+//							default: $display("%b", opcode);
 						endcase
 					end
 				3'b001: $display("sllw $%d, $%d, $%d", rd, rs1, rs2);
@@ -158,12 +158,12 @@ module r_instr
 							7'b0000000: $display("srlw $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0000001: $display("divuw $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0100000: $display("sraw $%d, $%d, $%d", rd, rs1, rs2);
-							default: $display("");
+//							default: $display("%b", opcode);
 						endcase
 					end
 				3'b110: $display("remw $%d, $%d, $%d", rd, rs1, rs2);
 				3'b111: $display("remuw $%d, $%d, $%d", rd, rs1, rs2);
-				default: $display("");
+//				default: $display("%b", opcode);
 			endcase
 		end
 		else if(opcode == 7'b0110011) begin //32R
@@ -177,7 +177,7 @@ module r_instr
 					3'b101: $display("divu $%d, $%d, $%d", rd, rs1, rs2);
 					3'b110: $display("rem $%d, $%d, $%d", rd, rs1, rs2);
 					3'b111: $display("remu $%d, $%d, $%d", rd, rs1, rs2);
-					default: $display("");
+//					default: $display("%b", opcode);
 				endcase
 			end
 			else begin
@@ -186,7 +186,7 @@ module r_instr
 						case(func7)
 							7'b0000000: $display("add $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0100000: $display("sub $%d, $%d, $%d", rd, rs1, rs2);
-							default: $display("");
+//							default: $display("%b", opcode);
 						endcase
 					end
 					3'b001: $display("sll $%d, $%d, $%d", rd, rs1, rs2);
@@ -197,12 +197,12 @@ module r_instr
 						case(func7)
 							7'b0000000: $display("srl $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0100000: $display("sra $%d, $%d, $%d", rd, rs1, rs2);
-							default: $display("");
+//							default: $display("%b", opcode);
 						endcase
 					end
 					3'b110: $display("or $%d, $%d, $%d", rd, rs1, rs2);
 					3'b111: $display("and $%d, $%d, $%d", rd, rs1, rs2);
-					default: $display("");
+//					default: $display("%b", opcode);
 				endcase
 			end
 		end
@@ -211,7 +211,7 @@ endmodule
 
 module i_instr
 	(
-	  //input  clk,
+	  input  clk,
 	  //       reset,
 
 	  // instruction to read
@@ -224,13 +224,24 @@ module i_instr
 	);
 
 	//variables for all
-	logic [6:0] opcode = instruction[6:0];
+	logic [6:0] opcode;
 	logic [2:0] func3 = instruction[14:12];
+	logic [31:0] prev_instr;
+	logic [31:0] wire_prev_instr;
 
 	//variables for shiting
 	//TODO: work shifting in below
 	logic [6:0] func7 = instruction[31:25];
 	logic [4:0] shamt = instruction[24:20];
+
+	always_comb begin
+		if(prev_instr == instruction) begin
+			opcode = 7'b1111111;
+		end
+		else begin
+			opcode = instruction[6:0];
+		end
+	end
 
 	always_comb begin
 		rs1 = instruction[19:15];
@@ -244,19 +255,20 @@ module i_instr
 				3'b000: $display("lb $%d, %d($%d)", rd, immediate, rs1);
 				3'b001: $display("lh $%d, %d($%d)", rd, immediate, rs1);
 				3'b010: $display("lw $%d, %d($%d)", rd, immediate, rs1);
+				3'b011: $display("ld $%d, %d($%d)", rd, immediate, rs1);
 				3'b100: $display("lbu $%d, %d($%d)", rd, immediate, rs1);
 				3'b101: $display("lhu $%d, %d($%d)", rd, immediate, rs1);
-				default: $display("");
+//				default: $display("%b", opcode);
 			endcase
 		end
-		else if(opcode == 7'b0110011) begin //32I
+		else if(opcode == 7'b0010011) begin //32I
 			case(func3)
 				3'b000: $display("addi $%d, $%d, %d", rd, rs1, immediate);
 				3'b001: begin
 						case(func7)
 							7'b0000000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
 							7'b0100000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
-							default: $display("");
+//							default: $display("%b", opcode);
 						endcase
 					end
 				3'b010: $display("slti $%d, $%d, %d", rd, rs1, immediate);
@@ -266,12 +278,12 @@ module i_instr
 						case(func7)
 							7'b0000000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
 							7'b0100000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
-							default: $display("");
+//							default: $display("%b", opcode);
 						endcase
 					end
 				3'b110: $display("ori $%d, $%d, %d", rd, rs1, immediate);
 				3'b111: $display("andi $%d, $%d, %d", rd, rs1, immediate);
-				default: $display("");
+//				default: $display("%b", opcode);
 			endcase
 		end
 		else if(opcode == 7'b0011011) begin //64I
@@ -282,13 +294,19 @@ module i_instr
 						case(func7)
 							7'b0000000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
 							7'b0100000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
-							default: $display("");
+//							default: $display("%b", opcode);
 						endcase
 					end
-				default: $display("");
+//				default: $display("%b", opcode);
 			endcase
 		end
+		wire_prev_instr = instruction;
 	end
+
+	always_ff @ (posedge clk) begin
+		prev_instr <= wire_prev_instr;
+	end
+
 endmodule
 
 module reg_file

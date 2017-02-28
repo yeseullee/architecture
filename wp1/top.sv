@@ -87,10 +87,12 @@ module top
                 if(instr[31:0] == 32'h0 || instr[63:32] == 32'h0) begin
                   next_state = IDLE;
                 end else begin
+		bus_respack = 1;
 
-                bus_respack = 1;
-                $display("instr1 %h", instr[31:0]);
-                $display("instr2 %h", instr[63:32]);
+                //$display("instr1 %h", instr[31:0]);
+                //$display("instr2 %h", instr[63:32]);
+
+		//fetch next set
                 if(count_wire == 8) begin
                   next_state = FETCH;
                 end else begin
@@ -102,6 +104,31 @@ module top
 
     endcase
   end
+
+  //handle incoming instructions
+  //setup outputs
+  logic [4:0] rs1;
+  logic [4:0] rs2;
+  logic [4:0] rd;
+  logic [19:0] branch_imm;
+  logic [6:0] offset;
+  logic [11:0] imm_val;
+  logic [4:0] misc_sb_offset;
+
+  //instantiate all modules for each instruction
+  uj_instr instr1uj_module (instr[31:0], branch_imm, rd);
+  u_instr instr1u_module (instr[31:0], branch_imm, rd);
+  sb_instr instr1sb_module (instr[31:0], misc_sb_offset, rs1, rs2, offset);
+  s_instr instr1s_module (instr[31:0], rs1, rs2, imm_val);
+  r_instr instr1r_module (instr[31:0], rs1, rs2, rd);
+  i_instr instr1i_module (clk, instr[31:0], rs1, imm_val, rd);
+
+  uj_instr instr2uj_module (instr[63:32], branch_imm, rd);
+  u_instr instr2u_module (instr[63:32], branch_imm, rd);
+  sb_instr instr2sb_module (instr[63:32], misc_sb_offset, rs1, rs2, offest);
+  s_instr instr2s_module (instr[63:32], rs1, rs2, imm_val);
+  r_instr instr2r_module (instr[63:32], rs1, rs2, rd);
+  i_instr instr2i_module (clk, instr[63:32], rs1, imm_val, rd);
 
   always_ff @ (posedge clk) begin
     if(reset) begin
@@ -123,3 +150,4 @@ module top
     //assign state = IDLE;
   end
 endmodule
+
