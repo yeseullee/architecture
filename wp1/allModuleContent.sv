@@ -463,33 +463,63 @@ module alu
 	  input [7:0] opcode,
 	  input [63:0] value1,
 	  input [63:0] value2,
-	  
+	  input [1:0] doALU, //if it is 1, then you do the alu operation.
+
 	  // outputs
-	  output [63:0] result
+	  output [63:0] result,
+          output [1:0] ready //when it is 1 when the result is ready to be used.
 	);
 
 	logic [63:0] ans;
-
+        logic [1:0] _ready;
 	always_comb begin
-		if (|value2 != 0) begin
+		_ready = 2'h0;
+                ans = 64'h0;
+		if (doALU == 2'h1) begin
 			case(opcode)
-				ADD: ans = value1 + value2;
-				SUB: ans = value1 - value2;
-				MUL: ans = value1 * value2;
-				DIV: ans = value1 / value2;
-				XOR: ans = value1 ^ value2;
-				AND: ans = value1 & value2;
-				OR: ans = value1 | value2;
-				REM: ans = value1 % value2;
-				NOT: ans = ~value1;
+				ADD: begin
+                                	ans = value1 + value2;
+                                        _ready = 2'h1;
+                                     end
+				SUB: begin
+                                	ans = value1 - value2;
+					_ready = 2'h1;
+				     end
+				MUL: begin
+					ans = value1 * value2;
+					_ready = 2'h1;
+				     end
+				DIV: begin
+					ans = value1 / value2;
+					_ready = 2'h1;
+				     end
+				XOR: begin
+					ans = value1 ^ value2;
+					_ready = 2'h1;
+				     end
+				AND: begin
+					ans = value1 & value2;
+					_ready = 2'h1;
+				     end
+				OR: begin
+					ans = value1 | value2;
+					_ready = 2'h1;
+				    end
+				REM: begin
+					ans = value1 % value2;
+					_ready = 2'h1;
+				     end
+				NOT: begin
+					ans = ~value1;
+					_ready = 2'h1;
+				     end
 				default: ans = ans;
 			endcase
 		end
-		else
-			ans = ans;
 	end
 
 	always_ff @(posedge clk) begin
+		ready <= _ready;
 		result <= ans;
 	end
 endmodule

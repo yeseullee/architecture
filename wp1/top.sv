@@ -28,24 +28,16 @@ module top
   enum { INIT=2'b00, FETCH=2'b01, WAIT=2'b10, DECODE=2'b11, IDLE=3'b100} state, next_state;
   reg [64:0] instr;
   reg [64:0] _instr;
-  reg [3:0] count_wire;
-  reg [3:0] count_register; 
-/*
-  always @ (posedge clk)
-    if (reset) begin
-      $display("Hi");
-      pc <= entry;
-    end else begin
-      $display("Hello World!  @ %x", pc);
-      $finish;
-    end
-*/
+  reg [3:0] _count;
+  reg [3:0] count; 
+
+
   always_comb begin
     bus_reqcyc = 0;
     bus_respack = 0;
     bus_req = 64'h0;
     bus_reqtag = 0;
-    count_wire = count_register;
+    _count = count;
     _pc = pc;
     _instr = instr;
     case(state)
@@ -60,7 +52,7 @@ module top
             end
       FETCH: begin
                _pc = pc + 64; 
-               count_wire = 0;
+               _count = 0;
                bus_reqcyc = 1;
                bus_req = pc;
                bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
@@ -75,7 +67,7 @@ module top
                if(bus_respcyc == 1) begin
                  _instr = bus_resp;
 
-                 count_wire = count_register + 1;
+                 _count = count + 1;
                  next_state = DECODE;
                end
                else begin
@@ -93,7 +85,7 @@ module top
                 //$display("instr2 %h", instr[63:32]);
 
 		//fetch next set
-                if(count_wire == 8) begin
+                if(_count == 8) begin
                   next_state = FETCH;
                 end else begin
                   next_state = WAIT;
@@ -131,23 +123,20 @@ module top
   i_instr instr2i_module (clk, instr[63:32], rs1, imm_val, rd);
 
   always_ff @ (posedge clk) begin
-    if(reset) begin
+    if(reset) begin //when first starting.
       pc <= entry;
       state <= INIT;
-      count_register <= 0;
+      count <= 0;
       instr <= 64'h0;
     end
     state <= next_state;
-    count_register <= count_wire;
+    count <= _count;
     pc <= _pc;
     instr <= _instr;
-    //$display("state = %d",state);
-    //$display("pc value %x", pc);
   end
 
   initial begin
     $display("Initializing top, entry point = 0x%x", entry);
-    //assign state = IDLE;
   end
 endmodule
 
