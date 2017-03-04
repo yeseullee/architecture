@@ -26,7 +26,7 @@ module decoder
 
 	//code to ensure each instruction is decoded only once
 	always_comb begin
-		if(prev_instr == instruction) begin
+		if(prev_instr != instruction) begin
 			opcode = instruction[6:0];
 		end
 		else begin
@@ -399,10 +399,10 @@ module decoder
 				end
 
 			//default cases
-			7'b0000000: $display("This instruction has been decoded before: %b|%b|%b|%b|%b|b", func7, rs2, rs1, func3, rd, opcode);
-			default: $display("This instruction is not recognized: %b|%b|%b|%b|%b|b", func7, rs2, rs1, func3, rd, opcode);
+			7'b0000000: ;//$display("This instruction has been decoded before: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
+			default: $display("This instruction is not recognized: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
 		endcase
-		wire_prev_instr = instruction;
+		prev_instr_wire = instruction;
 	end
 
 	always_ff @ (posedge clk) begin
