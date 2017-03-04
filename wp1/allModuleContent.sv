@@ -228,7 +228,6 @@ module r_instr
 							7'b0000000: $display("addw $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0000001: $display("mulw $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0100000: $display("subw $%d, $%d, $%d", rd, rs1, rs2);
-//							default: $display("%b", opcode);
 						endcase
 					end
 				3'b001: $display("sllw $%d, $%d, $%d", rd, rs1, rs2);
@@ -238,12 +237,10 @@ module r_instr
 							7'b0000000: $display("srlw $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0000001: $display("divuw $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0100000: $display("sraw $%d, $%d, $%d", rd, rs1, rs2);
-//							default: $display("%b", opcode);
 						endcase
 					end
 				3'b110: $display("remw $%d, $%d, $%d", rd, rs1, rs2);
 				3'b111: $display("remuw $%d, $%d, $%d", rd, rs1, rs2);
-//				default: $display("%b", opcode);
 			endcase
 		end
 		else if(opcode == 7'b0110011) begin //32R
@@ -257,7 +254,6 @@ module r_instr
 					3'b101: $display("divu $%d, $%d, $%d", rd, rs1, rs2);
 					3'b110: $display("rem $%d, $%d, $%d", rd, rs1, rs2);
 					3'b111: $display("remu $%d, $%d, $%d", rd, rs1, rs2);
-//					default: $display("%b", opcode);
 				endcase
 			end
 			else begin
@@ -266,7 +262,6 @@ module r_instr
 						case(func7)
 							7'b0000000: $display("add $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0100000: $display("sub $%d, $%d, $%d", rd, rs1, rs2);
-//							default: $display("%b", opcode);
 						endcase
 					end
 					3'b001: $display("sll $%d, $%d, $%d", rd, rs1, rs2);
@@ -277,12 +272,10 @@ module r_instr
 						case(func7)
 							7'b0000000: $display("srl $%d, $%d, $%d", rd, rs1, rs2);
 							7'b0100000: $display("sra $%d, $%d, $%d", rd, rs1, rs2);
-//							default: $display("%b", opcode);
 						endcase
 					end
 					3'b110: $display("or $%d, $%d, $%d", rd, rs1, rs2);
 					3'b111: $display("and $%d, $%d, $%d", rd, rs1, rs2);
-//					default: $display("%b", opcode);
 				endcase
 			end
 		end
@@ -338,7 +331,6 @@ module i_instr
 				3'b011: $display("ld $%d, %d($%d)", rd, immediate, rs1);
 				3'b100: $display("lbu $%d, %d($%d)", rd, immediate, rs1);
 				3'b101: $display("lhu $%d, %d($%d)", rd, immediate, rs1);
-//				default: $display("%b", opcode);
 			endcase
 		end
 		else if(opcode == 7'b0010011) begin //32I
@@ -348,7 +340,7 @@ module i_instr
 						case(func7)
 							7'b0000000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
 							7'b0100000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
-//							default: $display("%b", opcode);
+
 						endcase
 					end
 				3'b010: $display("slti $%d, $%d, %d", rd, rs1, immediate);
@@ -358,12 +350,10 @@ module i_instr
 						case(func7)
 							7'b0000000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
 							7'b0100000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
-//							default: $display("%b", opcode);
 						endcase
 					end
 				3'b110: $display("ori $%d, $%d, %d", rd, rs1, immediate);
 				3'b111: $display("andi $%d, $%d, %d", rd, rs1, immediate);
-//				default: $display("%b", opcode);
 			endcase
 		end
 		else if(opcode == 7'b0011011) begin //64I
@@ -374,10 +364,8 @@ module i_instr
 						case(func7)
 							7'b0000000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
 							7'b0100000: $display("Not yet supported, shamt = %d", shamt);//TODO: shift logic
-//							default: $display("%b", opcode);
 						endcase
 					end
-//				default: $display("%b", opcode);
 			endcase
 		end
 		wire_prev_instr = instruction;
@@ -386,7 +374,6 @@ module i_instr
 	always_ff @ (posedge clk) begin
 		prev_instr <= wire_prev_instr;
 	end
-
 endmodule
 
 module reg_file
