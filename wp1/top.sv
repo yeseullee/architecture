@@ -99,6 +99,20 @@ module top
 
   //handle incoming instructions
   //setup outputs
+  logic [4:0] rd;
+  logic [4:0] rs1;
+  logic [4:0] rs2;
+  logic [31:0] immediate;
+  logic [7:0] alu_op;
+  logic [5:0] shamt;
+  logic reg_write;
+
+  //instantiate all modules for each instruction
+  decoder instr1_decode_mod (clk, instr[31:0], rd, rs1, rs2, immediate, alu_op, shamt, reg_write);
+  decoder instr2_decode_mod (clk, instr[64:32], rd, rs1, rs2, immediate, alu_op, shamt, reg_write);
+
+  /*
+  //setup outputs
   logic [4:0] rs1;
   logic [4:0] rs2;
   logic [4:0] rd;
@@ -121,6 +135,7 @@ module top
   s_instr instr2s_module (clk, instr[63:32], rs1, rs2, imm_val);
   r_instr instr2r_module (clk, instr[63:32], rs1, rs2, rd);
   i_instr instr2i_module (clk, instr[63:32], rs1, imm_val, rd);
+*/
 
   always_ff @ (posedge clk) begin
     if(reset) begin //when first starting.

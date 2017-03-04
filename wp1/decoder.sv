@@ -22,11 +22,13 @@ module decoder
 	logic [6:0] func7 = instruction[31:25];
 	logic [31:0] prev_instr;
 	logic [31:0] prev_instr_wire;
-	logic [31:0] jal_imm, u_imm, sb_imm, i_imm, s_imm;
+	logic signed [31:0] jal_imm;
+	logic signed [31:0] u_imm, sb_imm;
+	logic signed [31:0] i_imm, s_imm;
 
 	//code to ensure each instruction is decoded only once
 	always_comb begin
-		if(prev_instr == instruction) begin
+		if(prev_instr != instruction) begin
 			opcode = instruction[6:0];
 		end
 		else begin
@@ -50,8 +52,8 @@ module decoder
 		jal_imm = {{12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0};
 		u_imm = {instruction[31:12], 12'b0};
 		sb_imm = {instruction[31], instruction[7], instruction[30:25], instruction[11:8], 1'b0};
-		i_imm = instruction[31:20];
-		s_imm = {instruction[31:25], instruction[11:7]};
+		i_imm = {{21{instruction[31]}}, instruction[30:20]};
+		s_imm = {{21{instruction[31]}}, instruction[30:25], instruction[11:7]};
 
 		//begin differntiating
 		case(opcode)
@@ -399,10 +401,10 @@ module decoder
 				end
 
 			//default cases
-			7'b0000000: $display("This instruction has been decoded before: %b|%b|%b|%b|%b|b", func7, rs2, rs1, func3, rd, opcode);
-			default: $display("This instruction is not recognized: %b|%b|%b|%b|%b|b", func7, rs2, rs1, func3, rd, opcode);
+			7'b0000000: ;//$display("This instruction has been decoded before: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
+			default: $display("This instruction is not recognized: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
 		endcase
-		wire_prev_instr = instruction;
+		prev_instr_wire = instruction;
 	end
 
 	always_ff @ (posedge clk) begin
