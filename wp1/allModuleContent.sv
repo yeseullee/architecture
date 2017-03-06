@@ -67,69 +67,26 @@ module alu
 	)
 	(
 	  input  clk,
-	  //       reset,
-
-	  //inputs
-	  input [7:0] opcode,
+	  input [4:0] opcode,
 	  input [63:0] value1,
 	  input [63:0] value2,
-	  input [1:0] doALU, //if it is 1, then you do the alu operation.
 
-	  // outputs
-	  output [63:0] result,
-          output [1:0] ready //when it is 1 when the result is ready to be used.
+	  output [63:0] result
 	);
 
-	logic [63:0] ans;
-        logic [1:0] _ready;
-	always_comb begin
-		_ready = 2'h0;
-                ans = 64'h0;
-		if (doALU == 2'h1) begin
-			case(opcode)
-				ADD: begin
-                                	ans = value1 + value2;
-                                        _ready = 2'h1;
-                                     end
-				SUB: begin
-                                	ans = value1 - value2;
-					_ready = 2'h1;
-				     end
-				MUL: begin
-					ans = value1 * value2;
-					_ready = 2'h1;
-				     end
-				DIV: begin
-					ans = value1 / value2;
-					_ready = 2'h1;
-				     end
-				XOR: begin
-					ans = value1 ^ value2;
-					_ready = 2'h1;
-				     end
-				AND: begin
-					ans = value1 & value2;
-					_ready = 2'h1;
-				     end
-				OR: begin
-					ans = value1 | value2;
-					_ready = 2'h1;
-				    end
-				REM: begin
-					ans = value1 % value2;
-					_ready = 2'h1;
-				     end
-				NOT: begin
-					ans = ~value1;
-					_ready = 2'h1;
-				     end
-				default: ans = ans;
-			endcase
-		end
+	always_ff @(posedge clk) begin
+		case(opcode)
+			ADD: result <= value1 + value2;
+			SUB: result <= value1 - value2;
+			MUL: result <= value1 * value2;
+			DIV: result <= value1 / value2;
+			XOR: result <= value1 ^ value2;
+			AND: result <= value1 & value2;
+			OR: result <= value1 | value2;
+			REM: result <= value1 % value2;
+			NOT: result <= ~value1;
+			default: result <= value1;
+		endcase
 	end
 
-	always_ff @(posedge clk) begin
-		ready <= _ready;
-		result <= ans;
-	end
 endmodule
