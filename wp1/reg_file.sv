@@ -55,11 +55,11 @@ module reg_file
 		end
 
 		//write values from wires to registers, excepting register 0
-		$display("All register contents:");
-		$display("Register $0: %d", _register[0]);
+		//$display("All register contents:");  //TODO: sychronize display with the instructions
+		//$display("Register $%d: %d", 0, _registers[0]);
 		registers[0] <= 64'b0; //TODO: is this necessary?
 		for (int i = 1; i < 32; i++) begin
-			$display("Register $%d: %d", i, _register[i]);
+			//$display("Register $%d: %d", i, _registers[i]);
 			registers[i] <= _registers[i];
 		end
 	end
