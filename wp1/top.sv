@@ -92,13 +92,12 @@ module top
                 end
 		end
               end
-	IDLE: $finish;
-
+	  IDLE: $finish;
     endcase
   end
 
   //handle incoming instructions
-  //setup outputs
+  //setup inputs & outputs for all modules
   logic [4:0] rd;
   logic [4:0] rs1;
   logic [4:0] rs2;
@@ -106,36 +105,28 @@ module top
   logic [7:0] alu_op;
   logic [5:0] shamt;
   logic reg_write;
+  logic [63:0] reg_write_val;
+  logic [63:0] rs1_val;
+  logic [63:0] rs2_val;
 
-  //instantiate all modules for each instruction
-  decoder instr1_decode_mod (clk, instr[31:0], rd, rs1, rs2, immediate, alu_op, shamt, reg_write);
-  decoder instr2_decode_mod (clk, instr[64:32], rd, rs1, rs2, immediate, alu_op, shamt, reg_write);
+  //instantiate decode modules for each instruction
+  decoder instr1_decode_mod (
+  		.clk(clk), .instruction(instr[31:0]), 					//inputs
+  		.rd(rd), .rs1(rs1), .rs2(rs2), .immediate(immediate), 	//outputs
+  		.alu_op(alu_op), .shamt(shamt), .reg_write.reg(write)
+  	);
+  decoder instr2_decode_mod (
+  		.clk(clk), .instruction(instr[63:32]), 					//inputs
+  		.rd(rd), .rs1(rs1), .rs2(rs2), .immediate(immediate), 	//outputs
+  		.alu_op(alu_op), .shamt(shamt), .reg_write.reg(write)
+  	);
 
-  /*
-  //setup outputs
-  logic [4:0] rs1;
-  logic [4:0] rs2;
-  logic [4:0] rd;
-  logic [19:0] branch_imm;
-  logic [6:0] offset;
-  logic [11:0] imm_val;
-  logic [4:0] misc_sb_offset;
-
-  //instantiate all modules for each instruction
-  uj_instr instr1uj_module (clk, instr[31:0], branch_imm, rd);
-  u_instr instr1u_module (clk, instr[31:0], branch_imm, rd);
-  sb_instr instr1sb_module (clk, instr[31:0], misc_sb_offset, rs1, rs2, offset);
-  s_instr instr1s_module (clk, instr[31:0], rs1, rs2, imm_val);
-  r_instr instr1r_module (clk, instr[31:0], rs1, rs2, rd);
-  i_instr instr1i_module (clk, instr[31:0], rs1, imm_val, rd);
-
-  uj_instr instr2uj_module (clk, instr[63:32], branch_imm, rd);
-  u_instr instr2u_module (clk, instr[63:32], branch_imm, rd);
-  sb_instr instr2sb_module (clk, instr[63:32], misc_sb_offset, rs1, rs2, offest);
-  s_instr instr2s_module (clk, instr[63:32], rs1, rs2, imm_val);
-  r_instr instr2r_module (clk, instr[63:32], rs1, rs2, rd);
-  i_instr instr2i_module (clk, instr[63:32], rs1, imm_val, rd);
-*/
+  //instantiate register file module
+  reg_file register_mod (
+  		.clk(clk), .reset(reset), .rs1(rs1), .rs2(rs2), 					//inputs
+  		.write_sig(reg_write), .write_val(reg_write_val), .write_reg(rd), 	//outputs
+  		.rs1_val(rs1_val), .rs2_val(rs2_val)
+  	);
 
   always_ff @ (posedge clk) begin
     if(reset) begin //when first starting.
