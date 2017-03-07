@@ -26,8 +26,8 @@ module top
   logic [63:0] pc;
   logic [63:0] _pc;
   enum { INIT=2'b00, FETCH=2'b01, WAIT=2'b10, DECODE=2'b11, IDLE=3'b100} state, next_state;
-  reg [64:0] instr;
-  reg [64:0] _instr;
+  reg [63:0] instr;
+  reg [63:0] _instr;
   reg [3:0] _count;
   reg [3:0] count; 
 
@@ -113,12 +113,12 @@ module top
   decoder instr1_decode_mod (
   		.clk(clk), .instruction(instr[31:0]), 					//inputs
   		.rd(rd), .rs1(rs1), .rs2(rs2), .immediate(immediate), 	//outputs
-  		.alu_op(alu_op), .shamt(shamt), .reg_write(reg_write_sig)
+  		.alu_op(alu_op[3:0]), .shamt(shamt), .reg_write(reg_write_sig)
   	);
   decoder instr2_decode_mod (
   		.clk(clk), .instruction(instr[63:32]), 					//inputs
   		.rd(rd), .rs1(rs1), .rs2(rs2), .immediate(immediate), 	//outputs
-  		.alu_op(alu_op), .shamt(shamt), .reg_write(reg_write_sig)
+  		.alu_op(alu_op[7:4]), .shamt(shamt), .reg_write(reg_write_sig)
   	);
 
   //instantiate register file module
