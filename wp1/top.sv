@@ -80,17 +80,21 @@ module top
       //WAIT: next_state = DECODE;
       DECODE: begin
                 //if both instr are 0s then finish.
-                if(instr[31:0] == 32'h0 || instr[63:32] == 32'h0) begin
+                if(instr[31:0] == 32'h0 && instr[63:32] == 32'h0) begin
                   next_state = IDLE;
                 end else begin
 
 		  //1 instruction at a time.
                   if(_instr_num < 2) begin
                     //decode, reg file, alu valid bits handle.
-
+                     if(_instr_num == 1) begin
+                       _instr = {32'b0,  instr[63:32]};
+                     end
                     _instr_num = instr_num + 1;
+                    next_state = DECODE;
                   end else begin		
 		    //fetch next set
+                    _instr_num = 0;
                     bus_respack = 1;
                     if(_count == 8) begin
                       next_state = FETCH;
@@ -111,7 +115,7 @@ module top
   logic [4:0] rs1;
   logic [4:0] rs2;
   logic [31:0] immediate;
-  logic [7:0] alu_op;
+  logic [3:0] alu_op;
   logic [5:0] shamt;
   logic reg_write_sig;
   logic [63:0] reg_write_val;
@@ -119,15 +123,10 @@ module top
   logic [63:0] rs2_val;
 
   //instantiate decode modules for each instruction
-  decoder instr1_decode_mod (
+  decoder instr_decode_mod (
   		.clk(clk), .instruction(instr[31:0]), 					//inputs
   		.rd(rd), .rs1(rs1), .rs2(rs2), .immediate(immediate), 	//outputs
-  		.alu_op(alu_op[3:0]), .shamt(shamt), .reg_write(reg_write_sig)
-  	);
-  decoder instr2_decode_mod (
-  		.clk(clk), .instruction(instr[63:32]), 					//inputs
-  		.rd(rd), .rs1(rs1), .rs2(rs2), .immediate(immediate), 	//outputs
-  		.alu_op(alu_op[7:4]), .shamt(shamt), .reg_write(reg_write_sig)
+  		.alu_op(alu_op), .shamt(shamt), .reg_write(reg_write_sig)
   	);
 
   //instantiate register file module
