@@ -25,12 +25,14 @@ module top
 
   logic [63:0] pc;
   logic [63:0] _pc;
-  enum { INIT=2'b00, FETCH=2'b01, WAIT=2'b10, DECODE=2'b11, IDLE=3'b100} state, next_state;
+  enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, DECODE=3'b011, IDLE=3'b100} state, next_state;
   reg [63:0] instr;
   reg [63:0] _instr;
   reg [3:0] _count;
   reg [3:0] count; 
-
+  reg [1:0] instr_num;
+  reg [1:0] _instr_num;
+  
 
   always_comb begin
     bus_reqcyc = 0;
@@ -40,6 +42,7 @@ module top
     _count = count;
     _pc = pc;
     _instr = instr;
+    _instr_num = instr_num;
     case(state)
       INIT: begin
               bus_reqcyc = 0;
@@ -76,20 +79,26 @@ module top
              end
       //WAIT: next_state = DECODE;
       DECODE: begin
+                //if both instr are 0s then finish.
                 if(instr[31:0] == 32'h0 || instr[63:32] == 32'h0) begin
                   next_state = IDLE;
                 end else begin
-		bus_respack = 1;
 
-                //$display("instr1 %h", instr[31:0]);
-                //$display("instr2 %h", instr[63:32]);
+		  //1 instruction at a time.
+                  if(_instr_num < 2) begin
+                    //decode, reg file, alu valid bits handle.
 
-		//fetch next set
-                if(_count == 8) begin
-                  next_state = FETCH;
-                end else begin
-                  next_state = WAIT;
-                end
+                    _instr_num = instr_num + 1;
+                  end else begin		
+		    //fetch next set
+                    bus_respack = 1;
+                    if(_count == 8) begin
+                      next_state = FETCH;
+                    end else begin
+                      next_state = WAIT;
+                    end
+                  end
+
 		end
               end
 	  IDLE: $finish;
@@ -134,11 +143,13 @@ module top
       state <= INIT;
       count <= 0;
       instr <= 64'h0;
+      instr_num <= 0;
     end
     state <= next_state;
     count <= _count;
     pc <= _pc;
     instr <= _instr;
+    instr_num <= _instr_num;
   end
 
   initial begin
