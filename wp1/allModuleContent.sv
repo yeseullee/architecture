@@ -13,7 +13,7 @@ module alu
 	)
 	(
 	  input  clk,
-	  input [7:0] opcode,
+	  input [3:0] opcode,
 	  input [63:0] value1,
 	  input [63:0] value2,
 
