@@ -77,7 +77,6 @@ module top
                  next_state = WAIT;
                end
              end
-      //WAIT: next_state = DECODE;
       DECODE: begin
                 //if both instr are 0s then finish.
                 if(instr[31:0] == 32'h0 && instr[63:32] == 32'h0) begin
@@ -119,6 +118,7 @@ module top
   logic [63:0] reg_write_val;
   logic [63:0] rs1_val;
   logic [63:0] rs2_val;
+  logic [63:0] alu_result;
 
   //instantiate decode modules for each instruction
   decoder instr_decode_mod (
@@ -133,6 +133,10 @@ module top
   		.write_sig(reg_write_sig), .write_val(reg_write_val), .write_reg(rd), 	//outputs
   		.rs1_val(rs1_val), .rs2_val(rs2_val)
   	);
+  //alu module
+  //TODO: gotta change the rs1 and rs2 values to what really needs to be computed..
+  alu alu_mod (.clk(clk), .opcode(alu_op), .value1(rs1_val), 
+		.value2(rs2_val), .result(alu_result));
 
   always_ff @ (posedge clk) begin
     if(reset) begin //when first starting.
