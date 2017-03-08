@@ -85,11 +85,9 @@ module top
                 end else begin
 
 		  //1 instruction at a time.
-                  if(_instr_num < 2) begin
+                  if(_instr_num == 0) begin
                     //decode, reg file, alu valid bits handle.
-                     if(_instr_num == 1) begin
-                       _instr = {32'b0,  instr[63:32]};
-                     end
+                    _instr = {32'b0,  instr[63:32]};
                     _instr_num = instr_num + 1;
                     next_state = DECODE;
                   end else begin		
