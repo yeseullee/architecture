@@ -51,7 +51,7 @@ module decoder
 		//set immediate values
 		jal_imm = {{12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0};
 		u_imm = {instruction[31:12], 12'b0};
-		sb_imm = {instruction[31], instruction[7], instruction[30:25], instruction[11:8], 1'b0};
+		sb_imm = {{20{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
 		i_imm = {{21{instruction[31]}}, instruction[30:20]};
 		s_imm = {{21{instruction[31]}}, instruction[30:25], instruction[11:7]};
 
@@ -59,9 +59,21 @@ module decoder
 		case(opcode)
 			//uj_instr
 			7'b1101111: begin
-					$display("jal %d", jal_imm);
+					if(rd == 0) begin
+						//pseudo-instruction for "jal x0, offset"
+						$display("j %d", jal_imm);
+						alu_op = 4'b0;
+					end
+					else if(rd == 1) begin
+						//pseudo-instruction for "jal x1, offset"
+						$display("jal %d", jal_imm);
+						alu_op = 4'b0;
+					end
+					else begin
+						$display("jal $d, %d", rd, jal_imm);
+						alu_op = 4'b0;
+					end
 					immediate = jal_imm;
-					alu_op = 4'b0;
 					//reg_write = 1;
 					//rd = 5'b11111; //jal stores address into register
 				end
@@ -84,20 +96,58 @@ module decoder
 			7'b1100011: begin
 					case(func3)
 						3'b000: begin
-								$display("beq $%d, $%d, %d", rs1, rs2, sb_imm);
-								alu_op = 4'b0;
+								if(rs2 == 0) begin
+									//pseudo-instruction for "beq rs1, x0, offset"
+									$display("beqz $%d, %d", rs1, sb_imm);
+									alu_op = 4'b0;
+								end
+								else begin
+									$display("beq $%d, $%d, %d", rs1, rs2, sb_imm);
+									alu_op = 4'b0;
+								end
 							end
 						3'b001: begin
-								$display("bne $%d, $%d, %d", rs1, rs2, sb_imm);
-								alu_op = 4'b0;
+								if(rs2 == 0) begin
+									//pseudo-instruction for "bne rs1, x0, offset"
+									$display("bnez $%d, %d", rs1, sb_imm);
+									alu_op = 4'b0;
+								end
+								else begin
+									$display("bne $%d, $%d, %d", rs1, rs2, sb_imm);
+									alu_op = 4'b0;
+								end
 							end
 						3'b100: begin
-								$display("blt $%d, $%d, %d", rs1, rs2, sb_imm);
-								alu_op = 4'b0;
+								if(rs1 == 0) begin
+									//pseudo-instruction for "blt x0, rs2, offset"
+									$display("bgtz $%d, %d", rs2, sb_imm);
+									alu_op = 4'b0;
+								end
+								else if(rs2 == 0) begin
+									//pseudo-instruction for "blt rs1, x0, offset"
+									$display("bltz $%d, %d", rs1, sb_imm);
+									alu_op = 4'b0;
+								end
+								else begin
+									$display("blt $%d, $%d, %d", rs1, rs2, sb_imm);
+									alu_op = 4'b0;
+								end
 							end
 						3'b101: begin
-								$display("bge $%d, $%d, %d", rs1, rs2, sb_imm);
-								alu_op = 4'b0;
+								if(rs1 == 0) begin
+									//pseudo-instruction for "bge x0, rs2, offset"
+									$display("blez $%d, %d", rs2, sb_imm);
+									alu_op = 4'b0;
+								end
+								else if(rs2 == 0) begin
+									//pseudo-instruction for "bge rs1, x0, offset"
+									$display("bgez $%d, %d", rs1, sb_imm);
+									alu_op = 4'b0;
+								end
+								else begin
+									$display("bge $%d, $%d, %d", rs1, rs2, sb_imm);
+									alu_op = 4'b0;
+								end
 							end
 						3'b110: begin
 								$display("bltu $%d, $%d, %d", rs1, rs2, sb_imm);
@@ -148,8 +198,15 @@ module decoder
 											alu_op = 4'b0011;
 										end
 									7'b0100000: begin
-											$display("subw $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op = 4'b0010;
+											if(rs1 == 0) begin
+												//pseudo-instruction for "subw rd, x0, rs2"
+												$display("negw $%d, $%d", rd, rs2);
+												alu_op = 4'b0;
+											end
+											else begin
+												$display("subw $%d, $%d, $%d", rd, rs1, rs2);
+												alu_op = 4'b0010;
+											end
 										end
 								endcase
 							end
@@ -234,8 +291,15 @@ module decoder
 											alu_op = 4'b0001;
 										end
 									7'b0100000: begin
-											$display("sub $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op = 4'b0010;
+											if(rs1 == 0) begin
+												//pseudo-instruction for "sub rd, 0, rs2"
+												$display("neg $%d, $%d", rd, rs2);
+												alu_op = 4'b0;
+											end
+											else begin
+												$display("sub $%d, $%d, $%d", rd, rs1, rs2);
+												alu_op = 4'b0010;
+											end
 										end
 								endcase
 							end
@@ -244,12 +308,31 @@ module decoder
 									alu_op = 4'b0;
 								end
 							3'b010: begin
-									$display("slt $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0;
+									if(rs1 == 0) begin
+										//pseudo-instruction for "slt rd, x0, rs2"
+										$display("sgtz $%d, $%d", rd, rs2);
+										alu_op = 4'b0;
+									end
+									else if(rs2 == 0) begin
+										//pseudo-instruction for "slt rd, rs1, x0"
+										$display("sltz $%d, $%d", rd, rs1);
+										alu_op = 4'b0;
+									end
+									else begin
+										$display("slt $%d, $%d, $%d", rd, rs1, rs2);
+										alu_op = 4'b0;
+									end
 								end
 							3'b011: begin
-									$display("sltu $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0;
+									if(rs1 == 0) begin
+										//pseudo-instruction for "sltu rd, x0, rs2"
+										$display("snez $%d, $%d", rd, rs2);
+										alu_op = 4'b0;
+									end
+									else begin
+										$display("sltu $%d, $%d, $%d", rd, rs1, rs2);
+										alu_op = 4'b0;
+									end
 								end
 							3'b100: begin
 									$display("xor $%d, $%d, $%d", rd, rs1, rs2);
@@ -282,8 +365,25 @@ module decoder
 
 			//i_instr
 			7'b1100111: begin
-					$display("jalr $%d, $%d", rd, rs1);
-					alu_op = 4'b0;
+					if(i_imm == 0 && rd == 0 && rs1 == 1) begin
+						//pseudo-instruction for "jalr x0, x1, 0"
+						$display("ret");
+						alu_op = 4'b0;
+					end
+					else if(i_imm == 0 && rd == 0) begin
+						//pseudo-instruction for "jalr x0, rs1, 0"
+						$display("jr $%d", rs1);
+						alu_op = 4'b0;
+					end
+					else if(i_imm == 0 && rd == 1) begin
+						//pseudo-instruction for "jalr x1, rs1, 0"
+						$display("jalr $%d", rs1);
+						alu_op = 4'b0;
+					end
+					else begin
+						$display("jalr $%d, $%d", rd, rs1);
+						alu_op = 4'b0;
+					end
 					reg_write = 1;
 				end
 			7'b0000011: begin //load
@@ -324,8 +424,25 @@ module decoder
 					immediate = i_imm;
 					case(func3)
 						3'b000: begin
-								$display("addi $%d, $%d, %d", rd, rs1, i_imm);
-								alu_op = 4'b0001;
+								if(i_imm == 0 && rd == 0 && rs1 == 0) begin
+									//pseudo-instruction for "addi x0, x0, 0"
+									$display("nop");
+									alu_op = 4'b0;
+								end
+								else if(i_imm == 0) begin
+									//pseudo-instruction for "addi rd, rs1, 0"
+									$display("mv $%d, $%d", rd, rs1);
+									alu_op = 4'b0;
+								end
+								else if(rs1 == 0) begin
+									//pseudo-instruction for "addi rd, x0, imm"
+									$display("li $%d, %d", rd, i_imm);
+									alu_op = 4'b0;
+								end
+								else begin
+									$display("addi $%d, $%d, %d", rd, rs1, i_imm);
+									alu_op = 4'b0001;
+								end
 							end
 						3'b001: begin
 								$display("slli $%d, $%d %d", rd, rs1, shamt);
@@ -337,12 +454,26 @@ module decoder
 								alu_op = 4'b0;
 							end
 						3'b011: begin
-								$display("sltiu $%d, $%d, %d", rd, rs1, i_imm);
-								alu_op = 4'b0;
+								if(i_imm == 1) begin
+									//pseudo-instruction for "slitu rd, rs1, 1"
+									$display("seqz $%d, $%d", rd, rs1);
+									alu_op = 4'b0;
+								end
+								else begin
+									$display("sltiu $%d, $%d, %d", rd, rs1, i_imm);
+									alu_op = 4'b0;
+								end
 							end
 						3'b100: begin
-								$display("xori $%d, $%d, %d", rd, rs1, i_imm);
-								alu_op = 4'b0101;
+								if(&i_imm == 1'b1) begin
+									//pseudo-instruction for "xori rd, rs1, -1"
+									$display("not $%d, $%d", rd, rs1);
+									alu_op = 4'b0;
+								end
+								else begin
+									$display("xori $%d, $%d, %d", rd, rs1, i_imm);
+									alu_op = 4'b0101;
+								end
 							end
 						3'b101: begin
 								case(func7)
@@ -373,9 +504,16 @@ module decoder
 					immediate = i_imm;
 					case(func3)
 						3'b000: begin
-								$display("addi $%d, $%d, %d", rd, rs1, i_imm);
-								immediate = i_imm;
-								alu_op = 4'b0001;
+								if(i_imm == 0) begin
+									//pseudo-instruction for "addiw rd, rs1, x0"
+									$display("sext.w $%d, $%d", rd, rs1);
+									alu_op = 4'b0;
+								end
+								else begin
+									$display("addiw $%d, $%d, %d", rd, rs1, i_imm);
+									immediate = i_imm;
+									alu_op = 4'b0001;
+								end
 							end
 						3'b001: begin
 								$display("slliw $%d, $%d %d", rd, rs1, shamt);
