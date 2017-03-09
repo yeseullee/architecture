@@ -7,6 +7,7 @@ module reg_file
 	  //reading inputs
 	  input [4:0] rs1,
 	  input [4:0] rs2,
+	  input new_instr,
 
 	  //writing inputs
 	  input write_sig, //signal to allow writing to any register
@@ -22,6 +23,7 @@ module reg_file
 	//setup registers
 	logic [63:0] registers[31:0];
 	logic [63:0] _registers[31:0];
+	logic debug = 0; //to print out the contents of each register upon ecah new instruction, set to 1
 
 	initial begin //TODO: if this code is in reset block, is it still necessary?
 		for (int i = 0; i < 32; i++) begin
@@ -55,11 +57,15 @@ module reg_file
 		end
 
 		//write values from wires to registers, excepting register 0
-		//$display("All register contents:");  //TODO: sychronize display with the instructions
-		//$display("Register $%d: %d", 0, _registers[0]);
+		if(new_instr == 1 && debug == 1) begin
+			$display("All register contents:");  //TODO: sychronize display with the instructions
+			$display("Register $%d: %d", 0, _registers[0]);
+		end
 		registers[0] <= 64'b0; //TODO: is this necessary?
 		for (int i = 1; i < 32; i++) begin
-			//$display("Register $%d: %d", i, _registers[i]);
+			if(new_instr == 1 && debug == 1) begin
+				$display("Register $%d: %d", i, _registers[i]);
+			end
 			registers[i] <= _registers[i];
 		end
 	end

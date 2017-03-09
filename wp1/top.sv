@@ -115,6 +115,7 @@ module top
   logic [3:0] alu_op;
   logic [5:0] shamt;
   logic reg_write_sig;
+  logic new_instr;
   logic [63:0] reg_write_val;
   logic [63:0] rs1_val;
   logic [63:0] rs2_val;
@@ -124,12 +125,12 @@ module top
   decoder instr_decode_mod (
   		.clk(clk), .instruction(instr[31:0]), 					//inputs
   		.rd(rd), .rs1(rs1), .rs2(rs2), .immediate(immediate), 	//outputs
-  		.alu_op(alu_op), .shamt(shamt), .reg_write(reg_write_sig)
+  		.alu_op(alu_op), .shamt(shamt), .reg_write(reg_write_sig), .new_instr(new_instr)
   	);
 
   //instantiate register file module
   reg_file register_mod (
-  		.clk(clk), .reset(reset), .rs1(rs1), .rs2(rs2), 					//inputs
+  		.clk(clk), .reset(reset), .rs1(rs1), .rs2(rs2), .new_instr(new_instr), 			//inputs
   		.write_sig(reg_write_sig), .write_val(reg_write_val), .write_reg(rd), 	//outputs
   		.rs1_val(rs1_val), .rs2_val(rs2_val)
   	);

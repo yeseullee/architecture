@@ -14,7 +14,8 @@ module decoder
 	  output [31:0] immediate,
 	  output [3:0] alu_op,
 	  output [5:0] shamt,
-	  output reg_write
+	  output reg_write,
+	  output new_instr
 	);
 
 	logic [6:0] opcode = instruction[6:0];
@@ -30,9 +31,11 @@ module decoder
 	always_comb begin
 		if(prev_instr != instruction) begin
 			opcode = instruction[6:0];
+			new_instr = 1;
 		end
 		else begin
 			opcode = 7'b0000000;
+			new_instr = 0;
 		end
 		prev_instr_wire = instruction;
 	end
@@ -70,7 +73,7 @@ module decoder
 						alu_op = 4'b0;
 					end
 					else begin
-						$display("jal $d, %d", rd, jal_imm);
+						$display("jal $%d, %d", rd, jal_imm);
 						alu_op = 4'b0;
 					end
 					immediate = jal_imm;
