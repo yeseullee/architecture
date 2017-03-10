@@ -9,8 +9,9 @@ module top
   input  clk,
          reset,
 
-  // 64-bit address of the program entry point
+  // 64-bit addresses of the program entry point and initial stack pointer
   input  [63:0] entry,
+  input  [63:0] stackptr,
   
   // interface to connect to the bus
   output bus_reqcyc,

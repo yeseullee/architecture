@@ -49,14 +49,14 @@ class System {
     DRAMSim::MultiChannelMemorySystem* dramsim;
     
 public:
-    System(Vtop* top, unsigned ramsize, unsigned heap_offset, const char* ramelf, int ps_per_clock);
+    System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, char* argv[], int ps_per_clock);
     ~System();
 
     void console();
     void tick(int clk);
 
-    uint64_t get_ram_address()  { return (uint64_t)ram; }    
-    uint64_t get_max_elf_addr() { return max_elf_addr;  }
+    uint64_t get_ram_address() const { return (uint64_t)ram; }
+    uint64_t get_max_elf_addr() const { return max_elf_addr;  }
 };
 
 #endif

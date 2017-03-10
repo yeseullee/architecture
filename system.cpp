@@ -46,18 +46,19 @@ static long ecall_ram = NULL;
 static long ecall_brk = NULL;
 static unsigned ecall_ramsize = 0;
 
-System::System(Vtop* top, unsigned ramsize, unsigned heap_offset, const char* ramelf, int ps_per_clock)
+System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, char* argv[], int ps_per_clock)
     : top(top), ramsize(ramsize), max_elf_addr(0), show_console(false), interrupts(0), rx_count(0)
 {
     ram = (char*) malloc(ramsize);
     assert(ram);
+    top->stackptr = (uint64_t)ram + ramsize - 4*MEGA;
+
+    // load the program image
+    if (ramelf) top->entry = load_elf(ramelf);
 
     ecall_ram = (long)ram;
     ecall_ramsize = ramsize;
-    ecall_brk = (long)ram+heap_offset;
-    
-    // load the program image
-    if (ramelf) top->entry = load_elf(ramelf);
+    ecall_brk = (long)ram + max_elf_addr;
 
     // create the dram simulator
     dramsim = DRAMSim::getMemorySystemInstance("DDR2_micron_16M_8b_x8_sg3E.ini", "system.ini", "../dramsim2", "dram_result", ramsize / MEGA);
@@ -231,23 +232,71 @@ uint64_t System::load_elf(const char* filename) {
         exit(-1);
     }
 
-    Elf_Scn* scn = NULL;
-    while ((scn = elf_nextscn(elf, scn)) != NULL) {
-      GElf_Shdr shdr;
-      gelf_getshdr(scn, &shdr);
-      if (shdr.sh_type != SHT_PROGBITS) continue;
-      if (!(shdr.sh_flags & SHF_EXECINSTR)) continue;
-      // copy segment content from file to memory
-      off_t off = lseek(fileDescriptor, shdr.sh_offset, SEEK_SET);
-      assert(-1 != off);
-      size_t len = read(fileDescriptor, (void*)(ram + 0/* addr */), shdr.sh_size);
-      assert(len == shdr.sh_size);
-      break; // just load the first one
-    }
-    
+    GElf_Ehdr elf_header;
+    gelf_getehdr(elf, &elf_header);
+
+    if (!elf_header.e_phnum) { // loading simple object file
+        Elf_Scn* scn = NULL;
+        while ((scn = elf_nextscn(elf, scn)) != NULL) {
+            GElf_Shdr shdr;
+            gelf_getshdr(scn, &shdr);
+            if (shdr.sh_type != SHT_PROGBITS) continue;
+            if (!(shdr.sh_flags & SHF_EXECINSTR)) continue;
+
+            // copy segment content from file to memory
+            assert(-1 != lseek(fileDescriptor, shdr.sh_offset, SEEK_SET));
+            assert(shdr.sh_size == read(fileDescriptor, (void*)(ram + 0/* addr */), shdr.sh_size));
+            break; // just load the first one
+        }
+	} else {
+		for (unsigned phn = 0; phn < elf_header.e_phnum; phn++) {
+			GElf_Phdr phdr;
+			gelf_getphdr(elf, phn, &phdr);
+
+			switch(phdr.p_type) {
+			case PT_LOAD:
+				if ((phdr.p_vaddr + phdr.p_memsz) > ramsize) {
+					cerr << "Not enough 'physical' ram" << endl;
+					exit(-1);
+				}
+
+				// initialize the memory segment to zero
+				memset(ram + phdr.p_vaddr, 0, phdr.p_memsz);
+				// copy segment content from file to memory
+				assert(-1 != lseek(fileDescriptor, phdr.p_offset, SEEK_SET));
+				assert(phdr.p_filesz == read(fileDescriptor, (void*)(ram + phdr.p_vaddr), phdr.p_filesz));
+
+				if (max_elf_addr < (phdr.p_vaddr + phdr.p_filesz))
+					max_elf_addr = (phdr.p_vaddr + phdr.p_filesz);
+
+				cerr << "Loaded ELF header #" << phn << "."
+					<< " offset: "   << phdr.p_offset
+					<< " filesize: " << phdr.p_filesz
+					<< " memsize: "  << phdr.p_memsz
+					<< " vaddr: "    << std::hex << phdr.p_vaddr << std::dec
+					<< " paddr: "    << std::hex << phdr.p_paddr << std::dec
+					<< " align: "    << phdr.p_align
+					<< endl;
+			    break;
+            case PT_NOTE:
+            case PT_TLS:
+			case PT_GNU_STACK:
+			case PT_GNU_RELRO:
+				// do nothing
+                break;
+			default:
+				cerr << "Unexpected ELF header " << phdr.p_type << endl;
+				exit(-1);
+			}
+		}
+
+		// page-align max_elf_addr
+		max_elf_addr = ((max_elf_addr + 4095) / 4096) * 4096;
+	}
+
     // finalize
     close(fileDescriptor);
-    return 0 /* entry point */;
+    return elf_header.e_entry /* entry point */;
 }
 
 extern "C" {
