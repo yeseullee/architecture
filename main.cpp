@@ -10,6 +10,7 @@
 #define RAM_SIZE                  (1*GIGA)
 #define INIT_STACK_OFFSET         (4*MEGA)
 #define INIT_STACK_POINTER        (RAM_SIZE - INIT_STACK_OFFSET)
+#define INIT_HEAP_OFFSET          (RAM_SIZE/2)
 
 #define be32tole(x)       (  \
 	  ((x & 0xFFU) << 24)    \
@@ -24,7 +25,7 @@ int main(int argc, char* argv[]) {
 	if (argc > 0) ramelf = argv[1];
 
 	Vtop top;
-	System sys(&top, 1*GIGA, ramelf, ps_per_clock);
+	System sys(&top, RAM_SIZE, INIT_HEAP_OFFSET, ramelf, ps_per_clock);
 
 	// build the system and load the image
 	char *ram = (char *)sys.get_ram_address();

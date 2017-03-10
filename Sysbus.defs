@@ -4,3 +4,7 @@
 `define SYSBUS_MMIO    4'b0011
 `define SYSBUS_PORT    4'b0100
 `define SYSBUS_IRQ     4'b1110
+
+// function to be called to execute a system call
+import "DPI-C" function void
+do_ecall(input longint a7, input longint a0, input longint a1, input longint a2, input longint a3, input longint a4, input longint a5, input longint a6, output longint a0ret);

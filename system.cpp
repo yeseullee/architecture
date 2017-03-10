@@ -42,11 +42,19 @@ double sc_time_stamp() {
     return main_time;
 }
 
-System::System(Vtop* top, unsigned ramsize, const char* ramelf, int ps_per_clock)
+static long ecall_ram = NULL;
+static long ecall_brk = NULL;
+static unsigned ecall_ramsize = 0;
+
+System::System(Vtop* top, unsigned ramsize, unsigned heap_offset, const char* ramelf, int ps_per_clock)
     : top(top), ramsize(ramsize), max_elf_addr(0), show_console(false), interrupts(0), rx_count(0)
 {
     ram = (char*) malloc(ramsize);
     assert(ram);
+
+    ecall_ram = (long)ram;
+    ecall_ramsize = ramsize;
+    ecall_brk = (long)ram+heap_offset;
     
     // load the program image
     if (ramelf) top->entry = load_elf(ramelf);
@@ -146,7 +154,7 @@ void System::tick(int clk) {
             --rx_count;
             return;
         }
-                
+
         bool isWrite = ((top->bus_reqtag >> 12) & 1) == WRITE;
         if (cmd == MEMORY && isWrite)
             rx_count = 8;
@@ -240,4 +248,40 @@ uint64_t System::load_elf(const char* filename) {
     // finalize
     close(fileDescriptor);
     return 0 /* entry point */;
+}
+
+extern "C" {
+
+#define ECALL_DEBUG 0
+
+void do_ecall(long long a7, long long a0, long long a1, long long a2, long long a3, long long a4, long long a5, long long a6, long long* a0ret) {
+#define NASTY_HACK(a) do { if ((a) >= ecall_ram && (a) < (ecall_ram+ecall_ramsize)) { (a) += ecall_ram; if (ECALL_DEBUG) cerr << "Shift " #a " into ram" << endl; } } while(0)
+    switch(a7) {
+    case __NR_munmap:
+        *a0ret = 0; // don't bother unmapping
+        return;
+    case __NR_brk:
+        if (ECALL_DEBUG) cerr << "Allocate " << a0 << " bytes at 0x" << std::hex << ecall_brk << std::dec << endl;
+        *a0ret = ecall_brk;
+        ecall_brk += a0;
+        return;
+
+    case __NR_mmap:
+        assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
+        return do_ecall(__NR_brk,a1,0,0,0,0,0,0,a0ret);
+
+    default:
+        NASTY_HACK(a0);
+        NASTY_HACK(a1);
+        NASTY_HACK(a2);
+        NASTY_HACK(a3);
+        NASTY_HACK(a4);
+        NASTY_HACK(a5);
+        NASTY_HACK(a6);
+        break;
+    }
+    if (ECALL_DEBUG) cerr << "Calling syscall " << a7 << endl;
+    *a0ret = syscall(a7, a0, a1, a2, a3, a4, a5, a6);
+}
+
 }

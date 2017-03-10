@@ -49,7 +49,7 @@ class System {
     DRAMSim::MultiChannelMemorySystem* dramsim;
     
 public:
-    System(Vtop* top, unsigned ramsize, const char* ramelf, int ps_per_clock);
+    System(Vtop* top, unsigned ramsize, unsigned heap_offset, const char* ramelf, int ps_per_clock);
     ~System();
 
     void console();
