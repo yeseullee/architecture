@@ -11,8 +11,8 @@
 #include <iostream>
 #include <arpa/inet.h>
 #include <ncurses.h>
+#include <syscall.h>
 #include "system.h"
-#include "syscall.h"
 #include "Vtop.h"
 
 using namespace std;
@@ -49,9 +49,17 @@ static unsigned ecall_ramsize = 0;
 System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, char* argv[], int ps_per_clock)
     : top(top), ramsize(ramsize), max_elf_addr(0), show_console(false), interrupts(0), rx_count(0)
 {
-    ram = (char*) malloc(ramsize);
+    ram = (char*)malloc(ramsize);
     assert(ram);
     top->stackptr = (uint64_t)ram + ramsize - 4*MEGA;
+
+    uint64_t* argvp = (uint64_t*)top->stackptr + 1;
+    argvp[-1] = argc;
+    char* argvtgt = (char*)&argvp[argc];
+    for(int arg = 0; arg < argc; ++arg) {
+        argvp[arg] = argvtgt - ram;
+        argvtgt = 1+stpcpy(argvtgt, argv[arg]);
+    }
 
     // load the program image
     if (ramelf) top->entry = load_elf(ramelf);
@@ -304,7 +312,6 @@ extern "C" {
 #define ECALL_DEBUG 0
 
 void do_ecall(long long a7, long long a0, long long a1, long long a2, long long a3, long long a4, long long a5, long long a6, long long* a0ret) {
-#define NASTY_HACK(a) do { if ((a) >= ecall_ram && (a) < (ecall_ram+ecall_ramsize)) { (a) += ecall_ram; if (ECALL_DEBUG) cerr << "Shift " #a " into ram" << endl; } } while(0)
     switch(a7) {
     case __NR_munmap:
         *a0ret = 0; // don't bother unmapping
@@ -319,14 +326,12 @@ void do_ecall(long long a7, long long a0, long long a1, long long a2, long long 
         assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
         return do_ecall(__NR_brk,a1,0,0,0,0,0,0,a0ret);
 
+    case __NR_write:
+        a1 += ecall_ram;
+        break;
+
     default:
-        NASTY_HACK(a0);
-        NASTY_HACK(a1);
-        NASTY_HACK(a2);
-        NASTY_HACK(a3);
-        NASTY_HACK(a4);
-        NASTY_HACK(a5);
-        NASTY_HACK(a6);
+        if (ECALL_DEBUG) cerr << "Default syscall " << a7 << endl;
         break;
     }
     if (ECALL_DEBUG) cerr << "Calling syscall " << a7 << endl;

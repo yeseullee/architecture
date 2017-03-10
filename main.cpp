@@ -26,9 +26,9 @@ int main(int argc, char* argv[]) {
 	// (argc, argv) sanity check
 	cerr << "===== Printing arguments of the program..." << endl;
 	for (int j = 0; j <= argc-1; j++) {
-		unsigned long guest_addr = INIT_STACK_POINTER + 16 * 4 + j * sizeof(uint32_t);
-		uint32_t val = *(uint32_t *)(ram + guest_addr);
-		
+		unsigned long guest_addr = INIT_STACK_POINTER + j * sizeof(uint64_t);
+		uint64_t val = *(uint64_t *)(ram + guest_addr);
+
 		if (0 == j) {
 			cerr << dec << "== argc: " << val << endl;
 		} else {
@@ -37,8 +37,7 @@ int main(int argc, char* argv[]) {
 			while (*arg_ptr++);
 			unsigned len = arg_ptr - arg_ptr1;
 			cerr << dec << "== argv[" << j-1 << "]: ";
-			long long dummy;
-			do_ecall(4, 2, val, len, 0, 0, 0, 0, &dummy);
+			do_ecall(1, 2, val, len, 0, 0, 0, 0, &argptr/*dummy*/);
 			cerr << endl;
 		}
 	}
