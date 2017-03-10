@@ -25,7 +25,7 @@ module top
 
   logic [63:0] pc;
   logic [63:0] _pc;
-  enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, DECODE=3'b011, IDLE=3'b100} state, next_state;
+  enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, DECODE=3'b011, EXECUTE=3'b100, IDLE=3'b111} state, next_state;
   reg [63:0] instr;
   reg [63:0] _instr;
   reg [3:0] _count;
@@ -88,7 +88,7 @@ module top
                     //decode, reg file, alu valid bits handle.
                     _instr = {32'b0,  instr[63:32]};
                     _instr_num = instr_num + 1;
-                    next_state = DECODE;
+                    next_state = EXECUTE;
                   end else begin		
 		    //fetch next set
                     _instr_num = 0;
@@ -102,7 +102,13 @@ module top
 
 		end
               end
-	  IDLE: $finish;
+      EXECUTE: begin
+		//To get more instructions.
+               	next_state = DECODE;
+ 		// print the result?
+                
+               end
+      IDLE: $finish;
     endcase
   end
 
@@ -111,7 +117,7 @@ module top
   logic [4:0] rd;
   logic [4:0] rs1;
   logic [4:0] rs2;
-  logic [31:0] immediate;
+  logic signed [31:0] immediate;
   logic [3:0] alu_op;
   logic [5:0] shamt;
   logic reg_write_sig;
@@ -120,7 +126,8 @@ module top
   logic [63:0] rs1_val;
   logic [63:0] rs2_val;
   logic [63:0] alu_result;
-
+  
+  // In Decode state
   //instantiate decode modules for each instruction
   decoder instr_decode_mod (
   		.clk(clk), .instruction(instr[31:0]), 					//inputs
@@ -128,16 +135,21 @@ module top
   		.alu_op(alu_op), .shamt(shamt), .reg_write(reg_write_sig), .new_instr(new_instr)
   	);
 
+  // In Decode state
   //instantiate register file module
   reg_file register_mod (
   		.clk(clk), .reset(reset), .rs1(rs1), .rs2(rs2), .new_instr(new_instr), 			//inputs
   		.write_sig(reg_write_sig), .write_val(reg_write_val), .write_reg(rd), 	//outputs
   		.rs1_val(rs1_val), .rs2_val(rs2_val)
   	);
-  //alu module
+
+   
+  //In Execute state
   //TODO: gotta change the rs1 and rs2 values to what really needs to be computed..
   alu alu_mod (.clk(clk), .opcode(alu_op), .value1(rs1_val), 
-		.value2(rs2_val), .result(alu_result));
+		.value2(rs2_val), .immediate(immediate), .result(alu_result));
+
+
 
   always_ff @ (posedge clk) begin
     if(reset) begin //when first starting.
