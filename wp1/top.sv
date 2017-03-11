@@ -114,40 +114,57 @@ module top
 
   //handle incoming instructions
   //setup inputs & outputs for all modules
-  logic [4:0] rd;
-  logic [4:0] rs1;
-  logic [4:0] rs2;
-  logic signed [31:0] immediate;
-  logic [3:0] alu_op;
-  logic [5:0] shamt;
-  logic reg_write_sig;
-  logic new_instr;
-  logic [63:0] reg_write_val;
-  logic [63:0] rs1_val;
-  logic [63:0] rs2_val;
-  logic [63:0] alu_result;
+
+  //instruction decode output registers and wires
+  logic [4:0] ID_rd;
+  logic [4:0] _ID_rd;
+  logic [4:0] ID_rs1;
+  logic [4:0] _ID_rs1;
+  logic [4:0] ID_rs2;
+  logic [4:0] _ID_rs2;
+  logic signed [31:0] ID_immediate;
+  logic signed [31:0] _ID_immediate;
+  logic [3:0] ID_alu_op;
+  logic [3:0] _ID_alu_op;
+  logic [5:0] ID_shamt;
+  logic [5:0] _ID_shamt;
+  logic ID_reg_write_sig;
+  logic _ID_reg_write_sig;
+  logic ID_new_instr;
+  logic _ID_new_instr;
+
+  //execution output registers and wires
+  //TODO: does this need to be split into two different stages (a register access and an alu execute)?
+  logic [63:0] EX_reg_write_val;
+  logic [63:0] _EX_reg_write_val;
+  logic [63:0] EX_rs1_val;
+  logic [63:0] _EX_rs1_val;
+  logic [63:0] EX_rs2_val;
+  logic [63:0] _EX_rs2_val;
+  logic [63:0] EX_alu_result; //@Yeseul: for now, is this the value to be written back to the register?
+  logic [63:0] _EX_alu_result;
   
   // In Decode state
   //instantiate decode modules for each instruction
   decoder instr_decode_mod (
   		.clk(clk), .instruction(instr[31:0]), 					//inputs
-  		.rd(rd), .rs1(rs1), .rs2(rs2), .immediate(immediate), 	//outputs
-  		.alu_op(alu_op), .shamt(shamt), .reg_write(reg_write_sig), .new_instr(new_instr)
+  		.rd(_ID_rd), .rs1(_ID_rs1), .rs2(_ID_rs2), .immediate(_ID_immediate), 	//outputs
+  		.alu_op(_ID_alu_op), .shamt(_ID_shamt), .reg_write(_ID_reg_write_sig), .new_instr(_ID_new_instr)
   	);
 
   // In Decode state
   //instantiate register file module
   reg_file register_mod (
-  		.clk(clk), .reset(reset), .rs1(rs1), .rs2(rs2), .new_instr(new_instr), 			//inputs
-  		.write_sig(reg_write_sig), .write_val(reg_write_val), .write_reg(rd), 	//outputs
-  		.rs1_val(rs1_val), .rs2_val(rs2_val)
+  		.clk(clk), .reset(reset), .rs1(ID_rs1), .rs2(ID_rs2), .new_instr(ID_new_instr), 	//inputs
+  		.write_sig(ID_reg_write_sig), .write_val(EX_reg_write_val), .write_reg(ID_rd), 
+  		.rs1_val(_EX_rs1_val), .rs2_val(_EX_rs2_val)  	//outputs
   	);
 
    
   //In Execute state
   //TODO: gotta change the rs1 and rs2 values to what really needs to be computed..
-  alu alu_mod (.clk(clk), .opcode(alu_op), .value1(rs1_val), 
-		.value2(rs2_val), .immediate(immediate), .result(alu_result));
+  alu alu_mod (.clk(clk), .opcode(ID_alu_op), .value1(EX_rs1_val), 
+		.value2(EX_rs2_val), .immediate(ID_immediate), .result(_EX_alu_result));
 
 
 
@@ -159,11 +176,30 @@ module top
       instr <= 64'h0;
       instr_num <= 0;
     end
+
+    //set IF registers
     state <= next_state;
     count <= _count;
     pc <= _pc;
     instr <= _instr;
     instr_num <= _instr_num;
+
+    //set ID registers
+	ID_rd <= _ID_rd;
+	ID_rs1 <= _ID_rs1;
+	ID_rs2 <= _ID_rs2;
+	ID_immediate <= _ID_immediate;
+	ID_alu_op <= _ID_alu_op;
+	ID_shamt <= _ID_shamt;
+	ID_reg_write_sig <= _ID_reg_write_sig;
+	ID_new_instr <= _ID_new_instr;
+
+	//set EX registers
+	EX_reg_write_val <= _EX_reg_write_val;
+	EX_rs1_val <= _EX_rs1_val;
+	EX_rs2_val <= _EX_rs2_val;
+	EX_alu_result <= _EX_alu_result;
+
   end
 
   initial begin
