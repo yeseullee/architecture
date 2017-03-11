@@ -25,12 +25,6 @@ module reg_file
 	logic [63:0] _registers[31:0];
 	logic debug = 0; //to print out the contents of each register upon ecah new instruction, set to 1
 
-	initial begin //TODO: if this code is in reset block, is it still necessary?
-		for (int i = 0; i < 32; i++) begin
-			registers[i] = 64'b0;
-		end
-	end
-	
 	always_comb begin
 		//set outputs
 		rs1_val = registers[rs1];
@@ -57,15 +51,19 @@ module reg_file
 		end
 
 		//write values from wires to registers, excepting register 0
+/*
 		if(new_instr == 1 && debug == 1) begin
 			$display("All register contents:");  //TODO: sychronize display with the instructions
 			$display("Register $%d: %d", 0, _registers[0]);
 		end
+*/
 		registers[0] <= 64'b0; //TODO: is this necessary?
 		for (int i = 1; i < 32; i++) begin
+/*
 			if(new_instr == 1 && debug == 1) begin
 				$display("Register $%d: %d", i, _registers[i]);
 			end
+*/
 			registers[i] <= _registers[i];
 		end
 	end

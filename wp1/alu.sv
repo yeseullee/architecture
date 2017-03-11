@@ -20,18 +20,18 @@ module alu
 	  output [63:0] result
 	);
 
-	always_ff @(posedge clk) begin
+	always_comb begin
 		case(opcode)
-			ADD: result <= value1 + value2;
-			SUB: result <= value1 - value2;
-			MUL: result <= value1 * value2;
-			DIV: result <= value1 / value2;
-			XOR: result <= value1 ^ value2;
-			AND: result <= value1 & value2;
-			OR: result <= value1 | value2;
-			REM: result <= value1 % value2;
-			NOT: result <= ~value1;
-			default: result <= value1;
+			ADD: result = value1 + value2;
+			SUB: result = value1 - value2;
+			MUL: result = value1 * value2;
+			DIV: result = value1 / value2;
+			XOR: result = value1 ^ value2;
+			AND: result = value1 & value2;
+			OR: result = value1 | value2;
+			REM: result = value1 % value2;
+			NOT: result = ~value1;
+			default: result = value1;
 		endcase
 	end
 
