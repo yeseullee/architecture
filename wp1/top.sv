@@ -163,8 +163,8 @@ module top
    
   //In Execute state
   //TODO: gotta change the rs1 and rs2 values to what really needs to be computed..
-  alu alu_mod (.clk(clk), .opcode(ID_alu_op), .value1(EX_rs1_val), 
-		.value2(EX_rs2_val), .immediate(ID_immediate), .result(_EX_alu_result));
+  alu alu_mod (.clk(clk), .opcode(ID_alu_op), .value1(EX_rs1_val), .value2(EX_rs2_val), .immediate(ID_immediate), //INPUTS 
+		.result(_EX_alu_result)); //OUTPUT
 
 
 

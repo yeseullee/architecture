@@ -15,36 +15,42 @@ module alu
 	(
 	  input  clk,
 	  input [3:0] opcode,
-	  input [63:0] value1,
-	  input [63:0] value2,
+	  input signed [63:0] value1,
+	  input signed [63:0] value2,
 	  input signed [31:0] immediate,
 
-	  output [63:0] result
+	  output signed [63:0] result
 	);
 
-	reg [63:0] _result = 0;
-	
+	reg signed [63:0] _result = 0;
+	reg signed [63:0] secondVal;
+
+//TODO: I gotta look into immediate to operate with value 1. 	
 	always_comb begin	
+		if(immediate != 0)begin
+			secondVal = immediate;
+		end else begin
+			secondVal = value2;
+		end
 		case(opcode)
-			ADD: _result = value1 + value2;
-			SUB: _result = value1 - value2;
-			MUL: _result = value1 * value2;
-			DIV: _result = value1 / value2;
-			XOR: _result = value1 ^ value2;
-			AND: _result = value1 & value2;
-			OR: _result = value1 | value2;
-			REM: _result = value1 % value2;
-			NOT: _result = ~value1;
-			NOTHING: _result = result;
+			ADD: result = value1 + secondVal;
+			SUB: result = value1 - secondVal;
+			MUL: result = value1 * secondVal;
+			DIV: result = value1 / secondVal;
+			XOR: result = value1 ^ secondVal;
+			AND: result = value1 & secondVal;
+			OR: result = value1 | secondVal;
+			REM:result = value1 % secondVal;
+			NOT: result = ~value1;
+			NOTHING: ;//_result = result;
 			//default: _result = value1;
 		endcase
 	end
 
 	always_ff @ (posedge clk) begin
 		if(opcode != NOTHING) begin
-			$display("First num %d Second num %d Immediate %d, Result %d", value1, value2, immediate, result);
+			$display("Opcode %d First num %d Second num %d Immediate %d, Result %d", opcode, value1, value2, immediate, result);
 		end
-		result <= _result;
 	end
 
 endmodule
