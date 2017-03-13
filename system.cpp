@@ -326,6 +326,7 @@ extern "C" {
             assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
             return do_ecall(__NR_brk,a1,0,0,0,0,0,0,a0ret);
 
+#define ECALL_OFFSET(v) do { (v) += ecall_ram; assert((v) < (ecall_ram + ecall_ramsize)); } while(0)
         case __NR_open:
         case __NR_poll:
         case __NR_access:
@@ -365,7 +366,7 @@ extern "C" {
         case __NR_perf_event_open:
         case __NR_getrandom:
         case __NR_memfd_create:
-            a0 += ecall_ram;
+            ECALL_OFFSET(a0);
             break;
 
         case __NR_read:
@@ -429,7 +430,7 @@ extern "C" {
         case __NR_sched_setattr:
         case __NR_sched_getattr:
         case __NR_bpf:
-            a1 += ecall_ram;
+            ECALL_OFFSET(a1);
             break;
 
         case __NR_stat:
@@ -451,8 +452,8 @@ extern "C" {
         case __NR_lremovexattr:
         case __NR_utimes:
         case __NR_get_mempolicy:
-            a0 += ecall_ram;
-            a1 += ecall_ram;
+            ECALL_OFFSET(a0);
+            ECALL_OFFSET(a1);
             break;
 
         case __NR_rt_sigaction:
@@ -471,8 +472,8 @@ extern "C" {
         case __NR_readlinkat:
         case __NR_utimensat:
         case __NR_accept4:
-            a1 += ecall_ram;
-            a2 += ecall_ram;
+            ECALL_OFFSET(a1);
+            ECALL_OFFSET(a2);
             break;
 
         case __NR_setresuid:
@@ -486,62 +487,62 @@ extern "C" {
         case __NR_add_key:
         case __NR_request_key:
         case __NR_getcpu:
-            a0 += ecall_ram;
-            a1 += ecall_ram;
-            a2 += ecall_ram;
+            ECALL_OFFSET(a0);
+            ECALL_OFFSET(a1);
+            ECALL_OFFSET(a2);
             break;
 
         case __NR_symlinkat:
-            a0 += ecall_ram;
-            a2 += ecall_ram;
+            ECALL_OFFSET(a0);
+            ECALL_OFFSET(a2);
             break;
 
         case __NR_futex:
-            a0 += ecall_ram;
-            a3 += ecall_ram;
-            a4 += ecall_ram;
+            ECALL_OFFSET(a0);
+            ECALL_OFFSET(a3);
+            ECALL_OFFSET(a4);
             break;
 
         case __NR_select:
-            a1 += ecall_ram;
-            a2 += ecall_ram;
-            a3 += ecall_ram;
-            a4 += ecall_ram;
+            ECALL_OFFSET(a1);
+            ECALL_OFFSET(a2);
+            ECALL_OFFSET(a3);
+            ECALL_OFFSET(a4);
             break;
 
         case __NR_renameat:
         case __NR_linkat:
-            a1 += ecall_ram;
-            a3 += ecall_ram;
+            ECALL_OFFSET(a1);
+            ECALL_OFFSET(a3);
             break;
 
         case __NR_recvmmsg:
         case __NR_sendto:
-            a1 += ecall_ram;
-            a4 += ecall_ram;
+            ECALL_OFFSET(a1);
+            ECALL_OFFSET(a4);
             break;
 
         case __NR_recvfrom:
-            a1 += ecall_ram;
-            a4 += ecall_ram;
-            a5 += ecall_ram;
+            ECALL_OFFSET(a1);
+            ECALL_OFFSET(a4);
+            ECALL_OFFSET(a5);
             break;
 
         case __NR_sendfile:
-            a2 += ecall_ram;
+            ECALL_OFFSET(a2);
             break;
 
         case __NR_socketpair:
-            a3 += ecall_ram;
+            ECALL_OFFSET(a3);
             break;
 
         case __NR_setsockopt:
-            a3 += ecall_ram;
+            ECALL_OFFSET(a3);
             break;
 
         case __NR_getsockopt:
-            a3 += ecall_ram;
-            a4 += ecall_ram;
+            ECALL_OFFSET(a3);
+            ECALL_OFFSET(a4);
             break;
 
         case __NR_clone:
