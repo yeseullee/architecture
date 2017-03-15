@@ -25,7 +25,7 @@ module top
 
   logic [63:0] pc;
   logic [63:0] _pc;
-  enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, DECODE=3'b011, EXECUTE=3'b100, IDLE=3'b111} state, next_state;
+  enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, DECODE=3'b011, EXECUTE=3'b100, WRITEBACK = 3'b101, IDLE=3'b111} state, next_state;
   reg [63:0] instr;
   reg [63:0] _instr;
   reg [3:0] _count;
@@ -108,6 +108,10 @@ module top
  		// print the result?
                 
                end
+      WRITEBACK: begin
+		//To write back to the register file.
+		//There should be write signal.
+		 end
       IDLE: $finish;
     endcase
   end
@@ -135,14 +139,29 @@ module top
 
   //execution output registers and wires
   //TODO: does this need to be split into two different stages (a register access and an alu execute)?
-  logic [63:0] EX_reg_write_val;
-  logic [63:0] _EX_reg_write_val;
+  logic [63:0] EX_reg_write_sig;
+  logic [63:0] _EX_reg_write_sig;
   logic [63:0] EX_rs1_val;
   logic [63:0] _EX_rs1_val;
   logic [63:0] EX_rs2_val;
   logic [63:0] _EX_rs2_val;
-  logic [63:0] EX_alu_result; //@Yeseul: for now, is this the value to be written back to the register?
+  logic [63:0] EX_alu_result; //@Yeseul: for now, is this the value to be written back to the register? yes.
   logic [63:0] _EX_alu_result;
+
+  logic [63:0] reg_file_rs1;
+  logic [63:0] _reg_file_rs1;
+  logic [63:0] reg_file_rs2;
+  logic [63:0] _reg_file_rs2;
+  logic [63:0] reg_file_write_sig;
+  logic [63:0] _reg_file_write_sig;
+  logic [63:0] reg_file_write_val;
+  logic [63:0] _reg_file_write_val;
+  logic [63:0] reg_file_write_reg;
+  logic [63:0] _reg_file_write_reg;
+  logic [63:0] reg_file_rs1_val;
+  logic [63:0] _reg_file_rs1_val;
+  logic [63:0] reg_file_rs2_val;
+  logic [63:0] _reg_file_rs2_val;
   
   // In Decode state
   //instantiate decode modules for each instruction
@@ -162,7 +181,6 @@ module top
 
    
   //In Execute state
-  //TODO: gotta change the rs1 and rs2 values to what really needs to be computed..
   alu alu_mod (.clk(clk), .opcode(ID_alu_op), .value1(EX_rs1_val), .value2(EX_rs2_val), .immediate(ID_immediate), //INPUTS 
 		.result(_EX_alu_result)); //OUTPUT
 
@@ -195,10 +213,19 @@ module top
 	ID_new_instr <= _ID_new_instr;
 
 	//set EX registers
-	EX_reg_write_val <= _EX_reg_write_val;
+	EX_reg_write_sig <= _EX_reg_write_sig;
 	EX_rs1_val <= _EX_rs1_val;
 	EX_rs2_val <= _EX_rs2_val;
 	EX_alu_result <= _EX_alu_result;
+
+	reg_file_rs1 <= _reg_file_rs1;
+	reg_file_rs2 <= _reg_file_rs2;
+	reg_file_write_sig <= _reg_file_write_sig;
+	reg_file_write_val <= _reg_file_write_val;
+	reg_file_write_reg <= _reg_file_write_reg;
+	reg_file_rs1_val <= _reg_file_rs1_val;
+	reg_file_rs2_val <= _reg_file_rs2_val;
+
 
   end
 
