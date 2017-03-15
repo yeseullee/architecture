@@ -96,29 +96,12 @@ module top
 		  _EX_opcode = _ID_alu_op;
 		  _EX_imm = _ID_immediate;
 
-		  //1 instruction at a time.
-                  if(_instr_num == 0) begin
-                    //decode, reg file, alu valid bits handle.
-                    _instr = {32'b0,  instr[63:32]};
-                    _instr_num = instr_num + 1;
-                    next_state = EXECUTE;
-                  end else begin		
-		    //fetch next set
-                    _instr_num = 0;
-                    bus_respack = 1;
-                    if(_count == 8) begin
-                      next_state = FETCH;
-                    end else begin
-                      next_state = WAIT;
-                    end
-                  end
-
+		  next_state = EXECUTE;
 		end
               end
       EXECUTE: begin
 		//To get more instructions.
-               	next_state = DECODE;
- 		// print the result?
+               	next_state = WRITEBACK;
                 
                end
       WRITEBACK: begin
@@ -128,12 +111,13 @@ module top
 
 		//Directions for all paths.
 		  //1 instruction at a time.
-                  if(_instr_num == 0) begin
+		  _instr_num = instr_num + 1;
+                  if(_instr_num == 1) begin
                     _instr = {32'b0,  instr[63:32]};
-                    _instr_num = instr_num + 1;
                     next_state = DECODE;
-                  end else begin		
-		    //fetch next set
+                  end
+		  if(_instr_num == 2) begin		
+		    //fetch the next set
                     _instr_num = 0;
                     bus_respack = 1;
 		    next_state = WAIT; 
