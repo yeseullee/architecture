@@ -7,7 +7,7 @@ module reg_file
 	  //reading inputs
 	  input [4:0] rs1,
 	  input [4:0] rs2,
-	  input new_instr,
+	  //input new_instr,
 
 	  //writing inputs
 	  input write_sig, //signal to allow writing to any register

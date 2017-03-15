@@ -69,7 +69,7 @@ module top
       WAIT:  begin
                if(bus_respcyc == 1) begin
                  _instr = bus_resp;
-
+		 _instr_num = 0;
                  _count = count + 1;
                  next_state = DECODE;
                end
@@ -82,6 +82,19 @@ module top
                 if(instr[31:0] == 32'h0 && instr[63:32] == 32'h0) begin
                   next_state = IDLE;
                 end else begin
+
+		  //Using wires because decode and register file is done in the same cycle.
+		  _reg_file_rs1 = _ID_rs1;
+		  _reg_file_rs2 = _ID_rs2;
+		  _reg_file_write_sig = _ID_reg_write_sig;
+		 // _reg_file_write_val; Not needed in decode?
+		  _reg_file_write_reg = _ID_rd;
+		  
+		  //Assuming register file is done, passing parameters for EXECUTE state.
+		  _EX_rs1_val = _reg_file_rs1_val;
+		  _EX_rs2_val = _reg_file_rs2_val;
+		  _EX_opcode = _ID_alu_op;
+		  _EX_imm = _ID_immediate;
 
 		  //1 instruction at a time.
                   if(_instr_num == 0) begin
@@ -111,7 +124,24 @@ module top
       WRITEBACK: begin
 		//To write back to the register file.
 		//There should be write signal.
-		 end
+		
+
+		//Directions for all paths.
+		  //1 instruction at a time.
+                  if(_instr_num == 0) begin
+                    _instr = {32'b0,  instr[63:32]};
+                    _instr_num = instr_num + 1;
+                    next_state = DECODE;
+                  end else begin		
+		    //fetch next set
+                    _instr_num = 0;
+                    bus_respack = 1;
+		    next_state = WAIT; 
+                    if(_count == 8) begin
+                      next_state = FETCH;
+                    end
+                  end
+		end
       IDLE: $finish;
     endcase
   end
@@ -145,9 +175,14 @@ module top
   logic [63:0] _EX_rs1_val;
   logic [63:0] EX_rs2_val;
   logic [63:0] _EX_rs2_val;
+  logic [63:0] EX_opcode;
+  logic [63:0] _EX_opcode;
+  logic [63:0] EX_imm;
+  logic [63:0] _EX_imm;
   logic [63:0] EX_alu_result; //@Yeseul: for now, is this the value to be written back to the register? yes.
   logic [63:0] _EX_alu_result;
 
+  //reg file has separate registers now because it is used in both decode and write back.
   logic [63:0] reg_file_rs1;
   logic [63:0] _reg_file_rs1;
   logic [63:0] reg_file_rs2;
@@ -174,14 +209,14 @@ module top
   // In Decode state
   //instantiate register file module
   reg_file register_mod (
-  		.clk(clk), .reset(reset), .rs1(ID_rs1), .rs2(ID_rs2), .new_instr(ID_new_instr), 	//inputs
-  		.write_sig(ID_reg_write_sig), .write_val(EX_reg_write_val), .write_reg(ID_rd), 
-  		.rs1_val(_EX_rs1_val), .rs2_val(_EX_rs2_val)  	//outputs
+  		.clk(clk), .reset(reset), .rs1(reg_file_rs1), .rs2(reg_file_rs2), //inputs
+  		.write_sig(reg_file_write_sig), .write_val(reg_file_write_val), .write_reg(reg_file_write_reg), 
+  		.rs1_val(_reg_file_rs1_val), .rs2_val(_reg_file_rs2_val)  	//outputs
   	);
 
    
   //In Execute state
-  alu alu_mod (.clk(clk), .opcode(ID_alu_op), .value1(EX_rs1_val), .value2(EX_rs2_val), .immediate(ID_immediate), //INPUTS 
+  alu alu_mod (.clk(clk), .opcode(EX_opcode), .value1(EX_rs1_val), .value2(EX_rs2_val), .immediate(EX_imm), //INPUTS 
 		.result(_EX_alu_result)); //OUTPUT
 
 
@@ -216,8 +251,11 @@ module top
 	EX_reg_write_sig <= _EX_reg_write_sig;
 	EX_rs1_val <= _EX_rs1_val;
 	EX_rs2_val <= _EX_rs2_val;
+	EX_opcode <= _EX_opcode;
+	EX_imm <= _EX_imm;
 	EX_alu_result <= _EX_alu_result;
 
+	//set Register File registers
 	reg_file_rs1 <= _reg_file_rs1;
 	reg_file_rs2 <= _reg_file_rs2;
 	reg_file_write_sig <= _reg_file_write_sig;
