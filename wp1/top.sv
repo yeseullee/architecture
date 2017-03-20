@@ -184,6 +184,7 @@ module top
     instr <= _instr;
     instr_num <= _instr_num;
 
+    //TODO: at a later date, when adding pipelining, add overarching if statements to each stage
     //set ID registers
 	ID_rd <= _ID_rd;
 	ID_rs1 <= _ID_rs1;
