@@ -25,7 +25,7 @@ module top
 
   logic [63:0] pc;
   logic [63:0] _pc;
-  enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, DECODE=3'b011, EXECUTE=3'b100, IDLE=3'b111} state, next_state;
+  enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, DECODE=3'b011, EXECUTE=3'b100, WRITEBACK = 3'b101, IDLE=3'b111} state, next_state;
   reg [63:0] instr;
   reg [63:0] _instr;
   reg [3:0] _count;
@@ -69,7 +69,7 @@ module top
       WAIT:  begin
                if(bus_respcyc == 1) begin
                  _instr = bus_resp;
-
+		 _instr_num = 0;
                  _count = count + 1;
                  next_state = DECODE;
                end
@@ -83,31 +83,49 @@ module top
                   next_state = IDLE;
                 end else begin
 
-		  //1 instruction at a time.
-                  if(_instr_num == 0) begin
-                    //decode, reg file, alu valid bits handle.
-                    _instr = {32'b0,  instr[63:32]};
-                    _instr_num = instr_num + 1;
-                    next_state = EXECUTE;
-                  end else begin		
-		    //fetch next set
-                    _instr_num = 0;
-                    bus_respack = 1;
-                    if(_count == 8) begin
-                      next_state = FETCH;
-                    end else begin
-                      next_state = WAIT;
-                    end
-                  end
+		  //Using wires because decode and register file is done in the same cycle.
+		  _reg_file_rs1 = _ID_rs1;
+		  _reg_file_rs2 = _ID_rs2;
+		  _reg_file_write_sig = _ID_reg_write_sig;
+		 // _reg_file_write_val; Not needed in decode?
+		  _reg_file_write_reg = _ID_rd;
+		  
+		  //Assuming register file is done, passing parameters for EXECUTE state.
+		  _EX_rs1_val = _reg_file_rs1_val;
+		  _EX_rs2_val = _reg_file_rs2_val;
+		  _EX_opcode = _ID_alu_op;
+		  _EX_imm = _ID_immediate;
 
+		  next_state = EXECUTE;
 		end
               end
       EXECUTE: begin
 		//To get more instructions.
-               	next_state = DECODE;
- 		// print the result?
+               	next_state = WRITEBACK;
                 
                end
+      WRITEBACK: begin
+		//To write back to the register file.
+		//There should be write signal.
+		
+
+		//Directions for all paths.
+		  //1 instruction at a time.
+		  _instr_num = instr_num + 1;
+                  if(_instr_num == 1) begin
+                    _instr = {32'b0,  instr[63:32]};
+                    next_state = DECODE;
+                  end
+		  if(_instr_num == 2) begin		
+		    //fetch the next set
+                    _instr_num = 0;
+                    bus_respack = 1;
+		    next_state = WAIT; 
+                    if(_count == 8) begin
+                      next_state = FETCH;
+                    end
+                  end
+		end
       IDLE: $finish;
     endcase
   end
@@ -135,14 +153,34 @@ module top
 
   //execution output registers and wires
   //TODO: does this need to be split into two different stages (a register access and an alu execute)?
-  logic [63:0] EX_reg_write_val;
-  logic [63:0] _EX_reg_write_val;
+  logic [63:0] EX_reg_write_sig;
+  logic [63:0] _EX_reg_write_sig;
   logic [63:0] EX_rs1_val;
   logic [63:0] _EX_rs1_val;
   logic [63:0] EX_rs2_val;
   logic [63:0] _EX_rs2_val;
-  logic [63:0] EX_alu_result; //@Yeseul: for now, is this the value to be written back to the register?
+  logic [63:0] EX_opcode;
+  logic [63:0] _EX_opcode;
+  logic [63:0] EX_imm;
+  logic [63:0] _EX_imm;
+  logic [63:0] EX_alu_result; //@Yeseul: for now, is this the value to be written back to the register? yes.
   logic [63:0] _EX_alu_result;
+
+  //reg file has separate registers now because it is used in both decode and write back.
+  logic [63:0] reg_file_rs1;
+  logic [63:0] _reg_file_rs1;
+  logic [63:0] reg_file_rs2;
+  logic [63:0] _reg_file_rs2;
+  logic [63:0] reg_file_write_sig;
+  logic [63:0] _reg_file_write_sig;
+  logic [63:0] reg_file_write_val;
+  logic [63:0] _reg_file_write_val;
+  logic [63:0] reg_file_write_reg;
+  logic [63:0] _reg_file_write_reg;
+  logic [63:0] reg_file_rs1_val;
+  logic [63:0] _reg_file_rs1_val;
+  logic [63:0] reg_file_rs2_val;
+  logic [63:0] _reg_file_rs2_val;
   
   // In Decode state
   //instantiate decode modules for each instruction
@@ -155,16 +193,15 @@ module top
   // In Decode state
   //instantiate register file module
   reg_file register_mod (
-  		.clk(clk), .reset(reset), .rs1(ID_rs1), .rs2(ID_rs2), .new_instr(ID_new_instr), 	//inputs
-  		.write_sig(ID_reg_write_sig), .write_val(EX_reg_write_val), .write_reg(ID_rd), 
-  		.rs1_val(_EX_rs1_val), .rs2_val(_EX_rs2_val)  	//outputs
+  		.clk(clk), .reset(reset), .rs1(reg_file_rs1), .rs2(reg_file_rs2), //inputs
+  		.write_sig(reg_file_write_sig), .write_val(reg_file_write_val), .write_reg(reg_file_write_reg), 
+  		.rs1_val(_reg_file_rs1_val), .rs2_val(_reg_file_rs2_val)  	//outputs
   	);
 
    
   //In Execute state
-  //TODO: gotta change the rs1 and rs2 values to what really needs to be computed..
-  alu alu_mod (.clk(clk), .opcode(ID_alu_op), .value1(EX_rs1_val), 
-		.value2(EX_rs2_val), .immediate(ID_immediate), .result(_EX_alu_result));
+  alu alu_mod (.clk(clk), .opcode(EX_opcode), .value1(EX_rs1_val), .value2(EX_rs2_val), .immediate(EX_imm), //INPUTS 
+		.result(_EX_alu_result)); //OUTPUT
 
 
 
@@ -196,10 +233,22 @@ module top
 	ID_new_instr <= _ID_new_instr;
 
 	//set EX registers
-	EX_reg_write_val <= _EX_reg_write_val;
+	EX_reg_write_sig <= _EX_reg_write_sig;
 	EX_rs1_val <= _EX_rs1_val;
 	EX_rs2_val <= _EX_rs2_val;
+	EX_opcode <= _EX_opcode;
+	EX_imm <= _EX_imm;
 	EX_alu_result <= _EX_alu_result;
+
+	//set Register File registers
+	reg_file_rs1 <= _reg_file_rs1;
+	reg_file_rs2 <= _reg_file_rs2;
+	reg_file_write_sig <= _reg_file_write_sig;
+	reg_file_write_val <= _reg_file_write_val;
+	reg_file_write_reg <= _reg_file_write_reg;
+	reg_file_rs1_val <= _reg_file_rs1_val;
+	reg_file_rs2_val <= _reg_file_rs2_val;
+
 
   end
 
