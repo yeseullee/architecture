@@ -15,7 +15,6 @@ module decoder
 	  output [3:0] alu_op,
 	  output [5:0] shamt,
 	  output reg_write,
-	  output new_instr
 	);
 
 	logic [6:0] opcode = instruction[6:0];
@@ -31,11 +30,9 @@ module decoder
 	always_comb begin
 		if(prev_instr != instruction) begin
 			opcode = instruction[6:0];
-			new_instr = 1;
 		end
 		else begin
 			opcode = 7'b0000000;
-			new_instr = 0;
 		end
 		prev_instr_wire = instruction;
 	end
