@@ -14,7 +14,7 @@ module decoder
 	  output [31:0] immediate,
 	  output [3:0] alu_op,
 	  output [5:0] shamt,
-	  output reg_write,
+	  output reg_write
 	);
 
 	logic [6:0] opcode = instruction[6:0];

@@ -144,25 +144,25 @@ module top
   //execution output registers and wires (EX and EX_WB)
   logic [63:0] EX_WB_alu_result;
   logic [63:0] _EX_alu_result;
-  logic [63:0] EX_WB_reg_write_sig;
-  logic [63:0] EX_WB_rd;
+  logic EX_WB_reg_write_sig;
+  logic [4:0] EX_WB_rd;
   
   // In Decode state: decoder and register file
-  decoder instr_decode_mod (
+  decoder decoder_mod (
   		.clk(clk), .instruction(instr[31:0]), 					       //inputs
   		.rd(_ID_rd), .rs1(_ID_rs1), .rs2(_ID_rs2), .immediate(_ID_immediate), 	//outputs
   		.alu_op(_ID_alu_op), .shamt(_ID_shamt), .reg_write(_ID_reg_write_sig)
   	);
   reg_file register_mod (
   		.clk(clk), .reset(reset), .rs1(_ID_rs1), .rs2(_ID_rs2),      //inputs
-  		.write_sig(EX_WB_write_sig), .write_val(EX_WB_alu_result), .write_reg(EX_WB_write_reg),
+  		.write_sig(EX_WB_reg_write_sig), .write_val(EX_WB_alu_result), .write_reg(EX_WB_rd),
   		.rs1_val(_ID_rs1_val), .rs2_val(_ID_rs2_val)  	     //outputs
   	);
 
   //In Execute state: alu
   alu alu_mod (.clk(clk), .opcode(ID_EX_alu_op), .value1(ID_EX_rs1_val),  //INPUTS 
     .value2(ID_EX_rs2_val), .immediate(ID_EX_imm),
-		.result(_WB_alu_result));           //OUTPUT
+		.result(_EX_alu_result));           //OUTPUT
 
 
 

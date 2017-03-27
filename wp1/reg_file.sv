@@ -35,6 +35,13 @@ module reg_file
 		if(write_sig == 1) begin
 			_registers[write_reg] = write_val;
 			//write_ack = 1;
+			if(debug == 1) begin
+				$display("All register contents:");
+				$display("Register $%d: %d", 0, _registers[0]);
+				for (int i = 1; i < 32; i++) begin
+					$display("Register $%d: %d", i, _registers[i]);
+				end
+			end
 		end
 		else begin
 			_registers[write_reg] = registers[write_reg];
