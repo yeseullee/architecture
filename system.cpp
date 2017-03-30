@@ -118,7 +118,7 @@ void System::tick(int clk) {
         if (ch != ERR) {
             if (!(interrupts & (1<<IRQ_KBD))) {
                 interrupts |= (1<<IRQ_KBD);
-                tx_queue.push_back(make_pair(IRQ_KBD,(int)IRQ));
+                tx_queue.push_back(make_pair(IRQ_KBD, (int)IRQ));
                 keys.push(ch);
             }
         }
@@ -174,8 +174,7 @@ void System::tick(int clk) {
 
         switch(cmd) {
         case MEMORY:
-            xfer_addr = top->bus_req;
-            assert(!(xfer_addr & 7));
+            xfer_addr = top->bus_req & ~0x3fULL;
             if (addr_to_tag.find(xfer_addr)!=addr_to_tag.end()) {
                 cerr << "Access for " << std::hex << xfer_addr << " already outstanding. Ignoring..." << endl;
             } else {
@@ -183,14 +182,14 @@ void System::tick(int clk) {
                         dramsim->addTransaction(isWrite, xfer_addr)
                       );
                 //cerr << "add transaction " << std::hex << xfer_addr << " on tag " << top->bus_reqtag << endl;
-                if (!isWrite) addr_to_tag[xfer_addr] = top->bus_reqtag;
+                if (!isWrite) addr_to_tag[xfer_addr] = make_pair(top->bus_req, top->bus_reqtag);
             }
             break;
 
         case MMIO:
             xfer_addr = top->bus_req;
             assert(!(xfer_addr & 7));
-            if (!isWrite) tx_queue.push_back(make_pair(*((uint64_t*)(&ram[xfer_addr])),top->bus_reqtag)); // hack - real I/O takes time
+            if (!isWrite) tx_queue.push_back(make_pair(*((uint64_t*)(&ram[xfer_addr])), top->bus_reqtag)); // hack - real I/O takes time
             break;
 
         default:
@@ -203,11 +202,12 @@ void System::tick(int clk) {
 }
 
 void System::dram_read_complete(unsigned id, uint64_t address, uint64_t clock_cycle) {
-    map<uint64_t, int>::iterator tag = addr_to_tag.find(address);
+    map<uint64_t, pair<uint64_t, int> >::iterator tag = addr_to_tag.find(address);
     assert(tag != addr_to_tag.end());
+    uint64_t orig_addr = tag->second.first;
     for(int i = 0; i < 64; i += 8) {
-        //cerr << "fill data from " << std::hex << (address+(i&63)) <<  ": " << tx_queue.rbegin()->first << " on tag " << tag->second << endl;
-        tx_queue.push_back(make_pair(*((uint64_t*)(&ram[((address&(~63))+((address+i)&63))])),tag->second));
+        //cerr << "fill data from " << std::hex << (orig_addr+(i&63)) <<  ": " << tx_queue.rbegin()->first << " on tag " << tag->second.second << endl;
+        tx_queue.push_back(make_pair(*((uint64_t*)(&ram[((orig_addr&(~63))+((orig_addr+i)&63))])), tag->second.second));
     }
     addr_to_tag.erase(tag);
 }
@@ -324,7 +324,7 @@ extern "C" {
 
         case __NR_mmap:
             assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
-            return do_ecall(__NR_brk,a1,0,0,0,0,0,0,a0ret);
+            return do_ecall(__NR_brk, a1, 0, 0, 0, 0, 0, 0, a0ret);
 
 #define ECALL_OFFSET(v) do { (v) += ecall_ram; assert((v) < (ecall_ram + ecall_ramsize)); } while(0)
         case __NR_open:
