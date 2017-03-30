@@ -58,19 +58,7 @@ module reg_file
 		end
 
 		//write values from wires to registers, excepting register 0
-/*
-		if(new_instr == 1 && debug == 1) begin
-			$display("All register contents:");  //TODO: sychronize display with the instructions
-			$display("Register $%d: %d", 0, _registers[0]);
-		end
-*/
-		registers[0] <= 64'b0; //TODO: is this necessary?
 		for (int i = 1; i < 32; i++) begin
-/*
-			if(new_instr == 1 && debug == 1) begin
-				$display("Register $%d: %d", i, _registers[i]);
-			end
-*/
 			registers[i] <= _registers[i];
 		end
 	end
