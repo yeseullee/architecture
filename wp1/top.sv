@@ -25,7 +25,7 @@ module top
 
   logic [63:0] pc;
   logic [63:0] _pc;
-  enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, DECODE=3'b011, EXECUTE=3'b100, WRITEBACK = 3'b101, IDLE=3'b111} state, next_state;
+  enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, DECODE=3'b011, REGFILE = 3'b100, EXECUTE=3'b101, WRITEBACK = 3'b110, IDLE=3'b111} state, next_state;
   reg [63:0] instr;
   reg [63:0] _instr;
   reg [3:0] _count;
@@ -86,28 +86,41 @@ module top
 		  //Using wires because decode and register file is done in the same cycle.
 		  _reg_file_rs1 = _ID_rs1;
 		  _reg_file_rs2 = _ID_rs2;
-		  _reg_file_write_sig = _ID_reg_write_sig;
-		 // _reg_file_write_val; Not needed in decode?
+		  _reg_file_temp_write_sig = _ID_reg_write_sig;
 		  _reg_file_write_reg = _ID_rd;
 		  
+		  next_state = REGFILE;
+		end
+              end
+      REGFILE: begin 
 		  //Assuming register file is done, passing parameters for EXECUTE state.
-		  _EX_rs1_val = _reg_file_rs1_val;
-		  _EX_rs2_val = _reg_file_rs2_val;
-		  _EX_opcode = _ID_alu_op;
-		  _EX_imm = _ID_immediate;
+		  _EX_rs1_val = reg_file_rs1_val;
+		  _EX_rs2_val = reg_file_rs2_val;
+		  _EX_opcode = ID_alu_op;
+		  _EX_imm = ID_immediate;
+		  _EX_reg_write_sig = reg_file_temp_write_sig;
+		  _EX_reg_write_reg = reg_file_write_reg;
 
 		  next_state = EXECUTE;
 		end
-              end
       EXECUTE: begin
 		//To get more instructions.
                	next_state = WRITEBACK;
                 
+
+		//SET WRITEBACK SIGNALS
+		_reg_file_write_sig = _EX_reg_write_sig;
+		_reg_file_write_val = _EX_alu_result;
+		_reg_file_write_reg = _EX_reg_write_reg; 
+		
+
                end
       WRITEBACK: begin
 		//To write back to the register file.
-		//There should be write signal.
-		
+		//There should be write signal.		
+		_reg_file_write_sig = 0;
+		_reg_file_write_val = 0;
+		_reg_file_write_reg = 0;
 
 		//Directions for all paths.
 		  //1 instruction at a time.
@@ -153,6 +166,9 @@ module top
 
   //execution output registers and wires
   //TODO: does this need to be split into two different stages (a register access and an alu execute)?
+
+  logic [63:0] EX_reg_write_reg;
+  logic [63:0] _EX_reg_write_reg;
   logic [63:0] EX_reg_write_sig;
   logic [63:0] _EX_reg_write_sig;
   logic [63:0] EX_rs1_val;
@@ -163,7 +179,7 @@ module top
   logic [63:0] _EX_opcode;
   logic [63:0] EX_imm;
   logic [63:0] _EX_imm;
-  logic [63:0] EX_alu_result; //@Yeseul: for now, is this the value to be written back to the register? yes.
+  logic [63:0] EX_alu_result;
   logic [63:0] _EX_alu_result;
 
   //reg file has separate registers now because it is used in both decode and write back.
@@ -171,8 +187,8 @@ module top
   logic [63:0] _reg_file_rs1;
   logic [63:0] reg_file_rs2;
   logic [63:0] _reg_file_rs2;
-  logic [63:0] reg_file_write_sig;
-  logic [63:0] _reg_file_write_sig;
+  logic reg_file_write_sig;
+  logic _reg_file_write_sig;
   logic [63:0] reg_file_write_val;
   logic [63:0] _reg_file_write_val;
   logic [63:0] reg_file_write_reg;
@@ -181,27 +197,41 @@ module top
   logic [63:0] _reg_file_rs1_val;
   logic [63:0] reg_file_rs2_val;
   logic [63:0] _reg_file_rs2_val;
-  
+  logic reg_file_temp_write_sig; //This is for when just reading from regfile stage.
+  logic _reg_file_temp_write_sig;
   // In Decode state
   //instantiate decode modules for each instruction
   decoder instr_decode_mod (
-  		.clk(clk), .instruction(instr[31:0]), 					//inputs
-  		.rd(_ID_rd), .rs1(_ID_rs1), .rs2(_ID_rs2), .immediate(_ID_immediate), 	//outputs
-  		.alu_op(_ID_alu_op), .shamt(_ID_shamt), .reg_write(_ID_reg_write_sig), .new_instr(_ID_new_instr)
+		//INPUTS
+  		.clk(clk), .instruction(instr[31:0]),
+
+ 		//OUTPUTS
+  		.rd(_ID_rd), .rs1(_ID_rs1), .rs2(_ID_rs2), .immediate(_ID_immediate),
+  		.alu_op(_ID_alu_op), .shamt(_ID_shamt), .reg_write(_ID_reg_write_sig),
+		.new_instr(_ID_new_instr)
   	);
 
   // In Decode state
   //instantiate register file module
   reg_file register_mod (
-  		.clk(clk), .reset(reset), .rs1(reg_file_rs1), .rs2(reg_file_rs2), //inputs
-  		.write_sig(reg_file_write_sig), .write_val(reg_file_write_val), .write_reg(reg_file_write_reg), 
-  		.rs1_val(_reg_file_rs1_val), .rs2_val(_reg_file_rs2_val)  	//outputs
+		//INPUTS
+  		.clk(clk), .reset(reset), .rs1(reg_file_rs1), .rs2(reg_file_rs2),
+  		.write_sig(reg_file_write_sig), .write_val(reg_file_write_val), 
+		.write_reg(reg_file_write_reg), 
+
+		//OUTPUTS
+  		.rs1_val(_reg_file_rs1_val), .rs2_val(_reg_file_rs2_val)
   	);
 
    
   //In Execute state
-  alu alu_mod (.clk(clk), .opcode(EX_opcode), .value1(EX_rs1_val), .value2(EX_rs2_val), .immediate(EX_imm), //INPUTS 
-		.result(_EX_alu_result)); //OUTPUT
+  alu alu_mod (
+		//INPUTS
+		.clk(clk), .opcode(EX_opcode), .value1(EX_rs1_val), 
+		.value2(EX_rs2_val), .immediate(EX_imm), .shamt(ID_shamt),
+
+		//OUTPUTS
+		.result(_EX_alu_result));
 
 
 
@@ -214,15 +244,15 @@ module top
       instr_num <= 0;
     end
 
-    //set IF registers
-    state <= next_state;
-    count <= _count;
-    pc <= _pc;
-    instr <= _instr;
-    instr_num <= _instr_num;
+	//set IF registers
+	state <= next_state;
+	count <= _count;
+	pc <= _pc;
+	instr <= _instr;
+	instr_num <= _instr_num;
 
-    //TODO: at a later date, when adding pipelining, add overarching if statements to each stage
-    //set ID registers
+	//TODO: at a later date, when adding pipelining, add overarching if statements to each stage
+	//set ID registers
 	ID_rd <= _ID_rd;
 	ID_rs1 <= _ID_rs1;
 	ID_rs2 <= _ID_rs2;
@@ -233,6 +263,7 @@ module top
 	ID_new_instr <= _ID_new_instr;
 
 	//set EX registers
+	EX_reg_write_reg <= _EX_reg_write_reg;
 	EX_reg_write_sig <= _EX_reg_write_sig;
 	EX_rs1_val <= _EX_rs1_val;
 	EX_rs2_val <= _EX_rs2_val;
@@ -248,7 +279,7 @@ module top
 	reg_file_write_reg <= _reg_file_write_reg;
 	reg_file_rs1_val <= _reg_file_rs1_val;
 	reg_file_rs2_val <= _reg_file_rs2_val;
-
+	reg_file_temp_write_sig <= _reg_file_temp_write_sig;
 
   end
 

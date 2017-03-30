@@ -1,6 +1,6 @@
 .PHONY: all run clean submit
 
-RUNELF=/shared/cse502/tests/wp2/prog1.o
+RUNELF=/shared/cse502/tests/wp2/prog3.o
 
 TRACE=--trace
 
