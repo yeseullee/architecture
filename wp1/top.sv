@@ -13,10 +13,12 @@ module top
     input  [63:0] entry,
 
     // interface to connect to the bus
+    //going to memory
     output bus_reqcyc, //I should set it to 1 for requesting to read instr
     output bus_respack, //I acknowledge the response by setting it to 1.
     output [BUS_DATA_WIDTH-1:0] bus_req,//the address I wanna read
     output [BUS_TAG_WIDTH-1:0] bus_reqtag, //what you are requesting.
+    //coming into processor
     input  bus_respcyc, //it should become 1 if it is ready to respond.
     input  bus_reqack,
     input  [BUS_DATA_WIDTH-1:0] bus_resp, //the instruction read.
@@ -100,6 +102,33 @@ module top
     logic [4:0] _WB_reg;
     logic _WB_sig;
 
+
+ 
+    //insert cache variables
+    logic cache = 1;  //set to 0 to remove the cache
+    logic cache_bus_reqcyc;
+    logic cache_bus_respack;
+    logic [BUS_DATA_WIDTH-1:0] cache_bus_req;
+    logic [BUS_TAG_WIDTH-1:0] cache_bus_reqtag;
+    logic cache_bus_respcyc;
+    logic cache_bus_reqack;
+    logic [BUS_DATA_WIDTH-1:0] cache_bus_resp;
+    logic [BUS_TAG_WIDTH-1:0] cache_bus_resptag;
+
+    direct_cache cache_mod (
+          //INPUTS
+          .p_bus_reqcyc(cache_bus_reqcyc), .p_bus_req(cache_bus_req), 
+          .p_bus_reqtag(cache_bus_reqtag), p_bus_respack(cache_bus_respack),
+          .m_bus_reqack(bus_reqack), .m_bus_respcyc(bus_respcyc), 
+          .m_bus_resp(bus_resp), .m_bus_resptag(bus_resptag),
+
+          //OUTPUTS
+          .p_bus_reqack(cache_bus_reqack), .p_bus_respcyc(cache_bus_respcyc), 
+          .p_bus_resp(cache_bus_resp), .p_bus_resptag(cache_bus_resptag),
+          .m_bus_reqcyc(bus_reqcyc), .m_bus_req(bus_req),
+          .m_bus_reqtag(bus_reqtag), .m_bus_respack(bus_respack)
+    )
+
     always_comb begin
         bus_reqcyc = 0;
         bus_respack = 0;
@@ -136,7 +165,14 @@ module top
 
         case(state)
             INIT: begin
-                  bus_reqcyc = 0;
+
+                  if(cache == 1) begin
+                    cache_bus_reqcyc = 0;
+                  end
+                  else begin
+                    bus_reqcyc = 0;
+                  end
+
                   if(!reset) begin
                     next_state = FETCH;
                   end
@@ -145,18 +181,33 @@ module top
                   end
                 end
             FETCH: begin
-                   _pc = pc + 64;
-                   _count = 0;
-                   bus_reqcyc = 1;
-                   bus_req = pc;
-                   bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                   if(!bus_reqack) begin
-                     next_state = FETCH;
-                   end
-                   else begin
-                     next_state = WAIT;
-                   end
-                 end
+
+                  _pc = pc + 64; 
+                  _count = 0;
+
+                  if(cache == 1) begin
+                    cache_bus_reqcyc = 1;
+                    cache_bus_req = pc;
+                    cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                    if(!cache_bus_reqack) begin
+                      next_state = FETCH;
+                    end               
+                    else begin
+                      next_state = WAIT;
+                    end
+                  end
+                  else begin
+                    bus_reqcyc = 1;
+                    bus_req = pc;
+                    bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                    if(!bus_reqack) begin
+                      next_state = FETCH;
+                    end               
+                    else begin
+                      next_state = WAIT;
+                    end
+                  end
+                end
             WAIT:  begin
                    if(bus_respcyc == 1) begin
                      _instr = bus_resp;
@@ -168,6 +219,32 @@ module top
                      next_state = WAIT;
                    end
                  end
+
+            WAIT:  begin
+                    if(cache == 1) begin
+                      if(cache_bus_respcyc == 1) begin
+                        _instr = cache_bus_resp;
+                        _instr_num = 0;
+                        _count = count + 1;
+                        next_state = DECODE;
+                      end
+                      else begin
+                        next_state = WAIT;
+                      end
+                    end
+                    else begin
+                      if(bus_respcyc == 1) begin
+                        _instr = bus_resp;
+                        _instr_num = 0;
+                        _count = count + 1;
+                        next_state = DECODE;
+                      end
+                      else begin
+                        next_state = WAIT;
+                      end
+                    end
+                  end
+
             DECODE: begin
                     //if both instr are 0s then finish.
                     if(instr[31:0] == 32'h0 && instr[63:32] == 32'h0) begin
@@ -224,8 +301,15 @@ module top
                       if(_instr_num == 2) begin
                         //fetch the next set
                         _instr_num = 0;
-                        bus_respack = 1;
+                        
+                        if(cache == 1) begin
+                          cache_bus_respack = 1;
+                        end else begin
+                          bus_respack = 1;
+                        end
+
                         next_state = WAIT;
+
                         if(_count == 8) begin
                           next_state = FETCH;
                         end
@@ -326,5 +410,6 @@ module top
     initial begin
         $display("Initializing top, entry point = 0x%x", entry);
     end
+
 endmodule
 
