@@ -13,11 +13,11 @@ module alu
 		NOT = 9,
 		LOGLEFT = 10, //These are shifts.
 		LOGRIGHT = 11,
-		ARTHRIGHT = 12
+		ARTHRIGHT = 12 //TODO
 	)
 	(
 	  input  clk,
-	  input [3:0] opcode,
+	  input [10:0] opcode,
 	  input signed [63:0] value1,
 	  input signed [63:0] value2,
 	  input signed [31:0] immediate,
@@ -33,7 +33,7 @@ module alu
 	always_comb begin	
 		if(immediate != 0)begin
 			secondVal = immediate;
-		end else if(shamt != 0) begin 
+		end else if((opcode >= 4'd9) && (opcode <= 4'd12)) begin 
 			secondVal = shamt;
 		end else begin
 			secondVal = value2;
