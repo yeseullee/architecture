@@ -36,7 +36,7 @@ module top
   reg [1:0] _instr_num;
   
   //insert cache variables
-  logic cache = 1;  //set to 0 to remove the cache
+  logic cache = 0;  //set to 0 to remove the cache
   logic cache_bus_reqcyc;
   logic cache_bus_respack;
   logic [BUS_DATA_WIDTH-1:0] cache_bus_req;
@@ -46,10 +46,10 @@ module top
   logic [BUS_DATA_WIDTH-1:0] cache_bus_resp;
   logic [BUS_TAG_WIDTH-1:0] cache_bus_resptag;
 
-  direct_cache cache_mod (
+/*  direct_cache cache_mod (
         //INPUTS
         .p_bus_reqcyc(cache_bus_reqcyc), .p_bus_req(cache_bus_req), 
-        .p_bus_reqtag(cache_bus_reqtag), p_bus_respack(cache_bus_respack),
+        .p_bus_reqtag(cache_bus_reqtag), .p_bus_respack(cache_bus_respack),
         .m_bus_reqack(bus_reqack), .m_bus_respcyc(bus_respcyc), 
         .m_bus_resp(bus_resp), .m_bus_resptag(bus_resptag),
 
@@ -58,8 +58,8 @@ module top
         .p_bus_resp(cache_bus_resp), .p_bus_resptag(cache_bus_resptag),
         .m_bus_reqcyc(bus_reqcyc), .m_bus_req(bus_req),
         .m_bus_reqtag(bus_reqtag), .m_bus_respack(bus_respack)
-  )
-
+  );
+*/
 
 
   always_comb begin

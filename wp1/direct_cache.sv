@@ -26,7 +26,7 @@ module direct_cache
 		output  p_bus_respcyc,						//set to 1 when ready to respond
 		input p_bus_respack, 						//acknowledgement by processor when receiving the data
 		output  [BUS_DATA_WIDTH-1:0] p_bus_resp,	//content of requested address
-		output  [BUS_TAG_WIDTH-1:0] p_bus_resptag	//tag associated with response (useful in superscalar)
+		output  [BUS_TAG_WIDTH-1:0] p_bus_resptag,	//tag associated with response (useful in superscalar)
 
 
 		// interface to connect to the bus on the dram(memory) side
@@ -47,21 +47,21 @@ module direct_cache
 	logic [63:0] _content = 64'b0;
 	logic [2:0] state = INITIAL;
 	logic [2:0] next_state = INITIAL;
-	logic cache_hit = 0;		//used in LOOKUP only (1 = hit, 0 = miss)
-	logic [2:0] ptr = 0			//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
-	logic [2:0] next_ptr = 0	//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
+	logic cache_hit;		//used in LOOKUP only (1 = hit, 0 = miss)
+	logic [2:0] ptr = 0;			//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
+	logic [2:0] next_ptr = 0;	//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
 
 	always_comb begin
 		p_bus_reqack = 0;
-		m_bus_respack = 0;
+		p_bus_respcyc = 0;
 		m_bus_reqcyc = 0;
-		m_bus_respcyc = 0;
+		m_bus_respack = 0;
 		case(state)
 			INITIAL: next_state = ACCEPT; //Initialize the system
 			ACCEPT: begin	//wait for requests from the processor
-					if(p_busreqcyc == 1) begin
+					if(p_bus_reqcyc == 1) begin
 						_req_addr = p_bus_req;
-						p_bus_respack = 1;
+						p_bus_reqack = 1;
 						next_state = LOOKUP;
 					end
 					else begin
@@ -88,7 +88,7 @@ module direct_cache
 					m_bus_reqtag = 64'b0;
 
 					//determine if memory received request
-					if(m_bus_reqack = 1) begin
+					if(m_bus_reqack == 1) begin
 						next_ptr = 0;
 						next_state = RECEIVE;
 					end
@@ -144,7 +144,6 @@ module direct_cache
 	always_ff @ (posedge clk) begin
 		if(reset) begin
 			state <= INITIAL;
-			cache_hit <= 1'b0;
 			ptr <= 2'b0;
 			for(int i = 0; i < 8; i++) begin
 				content[i] <= 64'b0;
