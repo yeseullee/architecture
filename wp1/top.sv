@@ -126,7 +126,7 @@ module top
         .p_bus_resp(cache_bus_resp), .p_bus_resptag(cache_bus_resptag),
         .m_bus_reqcyc(bus_reqcyc), .m_bus_req(bus_req),
         .m_bus_reqtag(bus_reqtag), .m_bus_respack(bus_respack)
-  );*/
+    );*/
 
     always_comb begin
         bus_reqcyc = 0;
