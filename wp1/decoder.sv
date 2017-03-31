@@ -12,7 +12,7 @@ module decoder
 	  output [4:0] rs1,
 	  output [4:0] rs2,
 	  output [31:0] immediate,
-	  output [3:0] alu_op,
+	  output [10:0] alu_op,
 	  output [5:0] shamt,
 	  output reg_write
 	);
@@ -44,7 +44,7 @@ module decoder
 		rs2 = instruction[24:20];
 		rd = instruction[11:7];
 		immediate = 32'b0;
-		alu_op = 4'b0; //TODO:insert all applicable alu ops below //Note-to-shanshan: all zero means no alu now.
+		alu_op = 11'b0; //TODO:insert all applicable alu ops below //Note-to-shanshan: all zero means no alu now.
 		shamt = instruction[25:20]; //for i instruction type shifting
 		reg_write = 1'b0;
 
@@ -201,11 +201,11 @@ module decoder
 											if(rs1 == 0) begin
 												//pseudo-instruction for "subw rd, x0, rs2"
 												$display("negw $%d, $%d", rd, rs2);
-												alu_op = 4'b0;
+												alu_op = 4'd2;
 											end
 											else begin
 												$display("subw $%d, $%d, $%d", rd, rs1, rs2);
-												alu_op = 4'b0010;
+												alu_op = 4'd2;
 											end
 										end
 								endcase
@@ -294,11 +294,11 @@ module decoder
 											if(rs1 == 0) begin
 												//pseudo-instruction for "sub rd, 0, rs2"
 												$display("neg $%d, $%d", rd, rs2);
-												alu_op = 4'b0;
+												alu_op = 4'd2;
 											end
 											else begin
 												$display("sub $%d, $%d, $%d", rd, rs1, rs2);
-												alu_op = 4'b0010;
+												alu_op = 4'd2;
 											end
 										end
 								endcase
@@ -432,12 +432,12 @@ module decoder
 								else if(i_imm == 0) begin
 									//pseudo-instruction for "addi rd, rs1, 0"
 									$display("mv $%d, $%d", rd, rs1);
-									alu_op = 4'b0;
+									alu_op = 4'b1;
 								end
 								else if(rs1 == 0) begin
 									//pseudo-instruction for "addi rd, x0, imm"
 									$display("li $%d, %d", rd, i_imm);
-									alu_op = 4'b0;
+									alu_op = 4'd1;
 								end
 								else begin
 									$display("addi $%d, $%d, %d", rd, rs1, i_imm);
