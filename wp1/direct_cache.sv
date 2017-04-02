@@ -6,11 +6,13 @@ module direct_cache
 
 		INITIAL = 0,
 		ACCEPT = 1,
-		LOOKUP = 2,
-		DRAM = 3,
-		RECEIVE = 4,
-		UPDATE = 5,
-		RESPOND = 6
+		ACKPROC = 2,
+		LOOKUP = 3,
+		DRAM = 4,
+		RECEIVE = 5,
+		UPDATE = 6,
+		RESPOND = 7,
+		RESPACK = 8
 	)
 	(
 		input  clk,
@@ -45,31 +47,48 @@ module direct_cache
 	logic [63:0] _req_addr = 64'b0;
 	logic [63:0] content[7:0];
 	logic [63:0] _content = 64'b0;
-	logic [2:0] state = INITIAL;
-	logic [2:0] next_state = INITIAL;
+	logic [3:0] state = INITIAL;
+	logic [3:0] next_state = INITIAL;
 	logic cache_hit;		//used in LOOKUP only (1 = hit, 0 = miss)
-	logic [2:0] ptr = 0;			//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
+	logic [2:0] ptr = 0;		//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
 	logic [2:0] next_ptr = 0;	//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
+	logic recv_proc_req = 0;
 
+	//multiple always comb blocks used to keep verilator happy
+	//accept requests from the processor
 	always_comb begin
-		p_bus_reqack = 0;
-		p_bus_respcyc = 0;
-		m_bus_reqcyc = 0;
-		m_bus_respack = 0;
 		case(state)
-			INITIAL: next_state = ACCEPT; //Initialize the system
+			INITIAL: begin
+					next_state = ACCEPT; //Initialize the system
+				end
 			ACCEPT: begin	//wait for requests from the processor
+					_req_addr = p_bus_req;
 					if(p_bus_reqcyc == 1) begin
-						_req_addr = p_bus_req;
-						p_bus_reqack = 1;
-						next_state = LOOKUP;
+						next_state = ACKPROC;
 					end
 					else begin
 						next_state = ACCEPT;
 					end
 				end
+		endcase
+	end
+
+	//acknowledge receiving request from processor
+	always_comb begin
+		p_bus_reqack = 0;
+		case(state)
+			ACKPROC: begin
+					p_bus_reqack = 1;
+					next_state = LOOKUP;
+				end
+		endcase
+	end
+
+	//check if request is already in the cache
+	always_comb begin
+		case(state)
 			LOOKUP: begin	//check if requested memory is in cache
-					cache_hit = 0;
+					cache_hit = 1;
 					//extract tag, index, etc from address
 					//compare to existing cache and set cache_hit and _content respectively
 
@@ -81,24 +100,33 @@ module direct_cache
 						next_state = DRAM;
 					end
 				end
-			DRAM: begin		//cache miss, so request from memory
+		endcase
+	end
+
+	//handle interaction with memory upon cache miss
+	always_comb begin
+		m_bus_reqcyc = 0;
+		m_bus_respack = 0;
+		case(state)
+			DRAM: begin
 					//send request to memory
 					m_bus_reqcyc = 1;
 					m_bus_req = req_addr;
 					m_bus_reqtag = 64'b0;
 
-					//determine if memory received request
+			/*		//determine if memory received request
 					if(m_bus_reqack == 1) begin
 						next_ptr = 0;
 						next_state = RECEIVE;
 					end
 					else begin
 						next_state = DRAM;
-					end
-				end
-			RECEIVE: begin		//wait for memory to respond
+					end*/
+				end/*
+			RECEIVE: begin
 					//receive reponse from memory if present
 					if(m_bus_respcyc == 1) begin
+						m_bus_respack = 1;
 						_content = m_bus_resp;
 						next_ptr = ptr + 1;
 						if(ptr == 7) begin
@@ -112,21 +140,41 @@ module direct_cache
 					else begin
 						next_state = RECEIVE;
 					end
-				end
+				end*/
+		endcase
+	end
+
+	//insert new block received from memory into the cache
+	always_comb begin
+		case(state)
 			UPDATE: begin	//insert the new block into the cache
 					next_state = RESPOND;
 				end
-			RESPOND:begin	//send data back to processor
-					//send response to processor
+		endcase
+	end
+
+	//respond to processor
+	always_comb begin
+		_content = content[ptr];
+		p_bus_respcyc = 0;
+		case(state)
+			RESPOND:begin
 					p_bus_respcyc = 1;
 					p_bus_resp = content[ptr];
+					next_ptr = ptr;
+					next_state = RESPACK;
+				end
+		endcase
+	end
 
-					//determine if processor received response
+	//determine if processor received response
+	always_comb begin
+		case(state)
+			RESPACK: begin
 					if(p_bus_respack == 1) begin
 						next_ptr = ptr + 1;
 						if(ptr == 7) begin
 							next_ptr = 0;
-							p_bus_respcyc = 0;
 							next_state = ACCEPT;
 						end
 						else begin
@@ -134,7 +182,6 @@ module direct_cache
 						end
 					end
 					else begin
-						next_ptr = ptr;
 						next_state = RESPOND;
 					end
 				end
@@ -146,7 +193,7 @@ module direct_cache
 			state <= INITIAL;
 			ptr <= 2'b0;
 			for(int i = 0; i < 8; i++) begin
-				content[i] <= 64'b0;
+				content[i] <= 64'b1;
 			end
 		end
 

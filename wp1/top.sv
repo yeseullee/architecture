@@ -103,8 +103,7 @@ module top
 
  
     //insert cache variables
-    //insert cache variables
-    logic cache = 0;  //set to 0 to remove the cache
+    logic cache = 0;  //set to 0 to remove the cache, and comment out cache initialization block
     logic cache_bus_reqcyc;
     logic cache_bus_respack;
     logic [BUS_DATA_WIDTH-1:0] cache_bus_req;
@@ -114,8 +113,9 @@ module top
     logic [BUS_DATA_WIDTH-1:0] cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] cache_bus_resptag;
 
-    /*  direct_cache cache_mod (
+    direct_cache cache_mod (
         //INPUTS
+        .clk(clk),// .reset(reset),
         .p_bus_reqcyc(cache_bus_reqcyc), .p_bus_req(cache_bus_req), 
         .p_bus_reqtag(cache_bus_reqtag), .p_bus_respack(cache_bus_respack),
         .m_bus_reqack(bus_reqack), .m_bus_respcyc(bus_respcyc), 
@@ -126,13 +126,22 @@ module top
         .p_bus_resp(cache_bus_resp), .p_bus_resptag(cache_bus_resptag),
         .m_bus_reqcyc(bus_reqcyc), .m_bus_req(bus_req),
         .m_bus_reqtag(bus_reqtag), .m_bus_respack(bus_respack)
-  );*/
+    );
 
     always_comb begin
-        bus_reqcyc = 0;
-        bus_respack = 0;
-        bus_req = 64'h0;
-        bus_reqtag = 0;
+        if(cache == 1) begin
+            cache_bus_reqcyc = 0;
+            cache_bus_respack = 0;
+            cache_bus_req = 64'h0;
+            cache_bus_reqtag = 0;
+        end
+        else begin
+            bus_reqcyc = 0;
+            bus_respack = 0;
+            bus_req = 64'h0;
+            bus_reqtag = 0;
+        end
+
         _count = count;
         _pc = pc;
         _instr = instr;
@@ -163,7 +172,7 @@ module top
 
         case(state)
             INIT: begin
-
+                  /*cache_bus_reqcyc = 0;*/
                   if(cache == 1) begin
                     cache_bus_reqcyc = 0;
                   end
@@ -179,44 +188,32 @@ module top
                   end
                 end
             FETCH: begin
-
                   _pc = pc + 64; 
                   _count = 0;
 
                   if(cache == 1) begin
-                    cache_bus_reqcyc = 1;
-                    cache_bus_req = pc;
-                    cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                    if(!cache_bus_reqack) begin
-                      next_state = FETCH;
-                    end               
-                    else begin
-                      next_state = WAIT;
-                    end
+                      cache_bus_reqcyc = 1;
+                      cache_bus_req = pc;
+                      cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                      if(!cache_bus_reqack) begin
+                          next_state = FETCH;
+                      end               
+                      else begin
+                          next_state = WAIT;
+                      end
                   end
                   else begin
-                    bus_reqcyc = 1;
-                    bus_req = pc;
-                    bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                    if(!bus_reqack) begin
-                      next_state = FETCH;
-                    end               
-                    else begin
-                      next_state = WAIT;
-                    end
+                      bus_reqcyc = 1;
+                      bus_req = pc;
+                      bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                      if(!bus_reqack) begin
+                          next_state = FETCH;
+                      end               
+                      else begin
+                          next_state = WAIT;
+                      end
                   end
                 end
-            WAIT:  begin
-                   if(bus_respcyc == 1) begin
-                     _instr = bus_resp;
-                     _instr_num = 0;
-                     _count = count + 1;
-                     next_state = DECODE;
-                   end
-                   else begin
-                     next_state = WAIT;
-                   end
-                 end
 
             WAIT:  begin
                     if(cache == 1) begin
@@ -290,19 +287,20 @@ module top
                     
                     
                     //Directions for all paths.
-                      //1 instruction at a time.
-                      _instr_num = instr_num + 1;
-                      if(_instr_num == 1) begin
+                    //1 instruction at a time.
+                    _instr_num = instr_num + 1;
+                    if(_instr_num == 1) begin
                         _instr = {32'b0,  instr[63:32]};
                         next_state = DECODE;
-                      end
-                      if(_instr_num == 2) begin
+                    end
+                    if(_instr_num == 2) begin
                         //fetch the next set
                         _instr_num = 0;
                         
                         if(cache == 1) begin
                           cache_bus_respack = 1;
-                        end else begin
+                        end
+                        else begin
                           bus_respack = 1;
                         end
 
@@ -375,8 +373,6 @@ module top
         pc <= _pc;
         instr <= _instr;
         instr_num <= _instr_num;
-
-        //TODO: at a later date, when adding pipelining, add overarching if statements to each stage
         
         //set ID registers
         ID_rd <= _ID_rd;
