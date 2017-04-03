@@ -53,6 +53,8 @@ module direct_cache
 	//variables used in all states
 	logic [63:0] req_addr = 64'b0;
 	logic [63:0] _req_addr = 64'b0;
+	logic [12:0] req_tag = 13'b0;
+	logic [12:0] _req_tag = 13'b0;
 	logic [3:0] state = INITIAL;
 	logic [3:0] next_state = INITIAL;
 	logic [DATA_LENGTH-1:0] content = 512'b0;
@@ -80,6 +82,7 @@ module direct_cache
 				end
 			ACCEPT: begin	//wait for requests from the processor
 					_req_addr = p_bus_req;
+					_req_tag = p_bus_reqtag;
 					if(p_bus_reqcyc == 1) begin
 						next_state = ACKPROC;
 					end
@@ -145,23 +148,23 @@ module direct_cache
 					//send request to memory
 					m_bus_reqcyc = 1;
 					m_bus_req = req_addr;
-					m_bus_reqtag = 0;
+					m_bus_reqtag = req_tag;
 
-					/*//determine if memory received request
+					//determine if memory received request
 					if(m_bus_reqack == 1) begin
 						next_ptr = 0;
 						next_state = RECEIVE;
 					end
 					else begin
 						next_state = DRAM;
-					end*/
-				end/*
+					end
+				end
 			RECEIVE: begin
 					//receive reponse from memory if present
 					if(m_bus_respcyc == 1) begin
 						m_bus_respack = 1;
 						//_content[(DATA_LENGTH-1)-(64*ptr):(DATA_LENGTH-1)-(64*(ptr+1)] = m_bus_resp;
-						_content[64*ptr +: 63] = m_bus_resp+;
+						_content[64*ptr +: 63] = m_bus_resp;
 						next_ptr = ptr + 1;
 						if(ptr == 7) begin
 							next_state = UPDATE;
@@ -174,7 +177,7 @@ module direct_cache
 					else begin
 						next_state = RECEIVE;
 					end
-				end*/
+				end
 		endcase
 	end
 
@@ -240,6 +243,7 @@ module direct_cache
 		ptr <= next_ptr;
 		state <= next_state;
 		req_addr <= _req_addr;
+		req_tag <= _req_tag;
 		content <= _content;
 		for(int i = 0; i < NUM_CACHE_SETS; i++) begin
 			cache[i] <= _cache[i];
