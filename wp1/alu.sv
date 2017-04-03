@@ -8,14 +8,18 @@ module alu
 	  input signed [63:0] value2,
 	  input signed [31:0] immediate,
 	  input [5:0] shamt,
+	  input [3:0] instr_type,
 	  output signed [63:0] result
 	);
 
-	logic signed [63:0] _result = 0;
+	logic signed [63:0] firstVal = 0;
+	logic unsigned [63:0] u_firstVal = 0;
 	logic signed [63:0] secondVal = 0;
-	logic signed [63:0] _secondVal = 0;
+	logic unsigned [63:0] u_secondVal = 0;
 
-//TODO: I gotta look into immediate to operate with value 1. 	
+	//TODO: Deal with firstval and secondval.
+	//TODO: W instructions and Unsigned instructions.
+
 	always_comb begin	
 		if(immediate != 0)begin
 			secondVal = immediate;
@@ -35,9 +39,16 @@ module alu
 			`OR: result = value1 | secondVal;
 			`REM:result = value1 % secondVal;
 			`NOT: result = ~value1;
-			`LOGLEFT: result = value1 << secondVal;
-			`LOGRIGHT: result = value1 >> secondVal;
+			//`LOGLEFT: result = value1 << secondVal;
+			//`LOGRIGHT: result = value1 >> secondVal;
 			//`ARTHRIGHT: result = value1 >>> secondVal;
+			`LESS: begin
+				if(value1 < secondVal)begin
+					result = 1;
+				end else begin
+					result = 0;
+				end
+			       end
 			`NOTHING: ;//_result = result;
 			//default: _result = value1;
 		endcase

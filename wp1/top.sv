@@ -56,13 +56,14 @@ module top
     logic [5:0] _ID_shamt;
     logic ID_write_sig;
     logic _ID_write_sig;
-
+    logic [3:0] ID_instr_type;
+    logic [3:0] _ID_instr_type;
 
     //READ WIRES & REGISTERS  
     //No pass along WIRES
     logic [4:0] _RD_rs1;
     logic [4:0] _RD_rs2;
-    //Pass along REGISTERS (7)
+    //Pass along REGISTERS (8)
     logic [31:0] RD_immediate;
     logic [31:0] _RD_immediate;
     logic [10:0] RD_alu_op;
@@ -73,6 +74,8 @@ module top
     logic _RD_write_sig; 
     logic [4:0] RD_write_reg;
     logic [4:0] _RD_write_reg;
+    logic [3:0] RD_instr_type;
+    logic [3:0] _RD_instr_type;
     // Also pass these .. (from Reg file output)
     logic [63:0] RD_rs1_val;
     logic [63:0] _RD_rs1_val;
@@ -87,6 +90,7 @@ module top
     logic [10:0] _EX_alu_op;
     logic [31:0] _EX_immediate;
     logic [5:0] _EX_shamt;
+    logic [3:0] _EX_instr_type;
     // Pass along REGISTERS (3)
     logic [63:0] EX_alu_result;
     logic [63:0] _EX_alu_result;
@@ -155,6 +159,7 @@ module top
         _ID_alu_op = ID_alu_op;
         _ID_shamt = ID_shamt;
         _ID_write_sig = ID_write_sig;
+        _ID_instr_type = ID_instr_type;
 
         //set RD wires (to registers)
         _RD_immediate = RD_immediate;
@@ -162,6 +167,7 @@ module top
         _RD_shamt = RD_shamt;
         _RD_write_sig = RD_write_sig;
         _RD_write_reg = RD_write_reg;
+        _RD_instr_type = RD_instr_type;
         _RD_rs1_val = RD_rs1_val;
         _RD_rs2_val = RD_rs2_val;
 
@@ -258,6 +264,7 @@ module top
                       _RD_shamt = ID_shamt;
                       _RD_write_sig = ID_write_sig;
                       _RD_write_reg = ID_rd;
+                      _RD_instr_type = ID_instr_type;
 
                       next_state = EXECUTE;
                     end
@@ -270,6 +277,7 @@ module top
                       _EX_immediate = RD_immediate;
                       _EX_alu_op = RD_alu_op;
                       _EX_shamt = RD_shamt;
+		      _EX_instr_type = RD_instr_type;
                       //Passing these as registers to WB.
                       _EX_write_sig = RD_write_sig; 
                       _EX_write_reg = RD_write_reg;
@@ -326,7 +334,7 @@ module top
                 .rd(_ID_rd), .rs1(_ID_rs1), .rs2(_ID_rs2), 
                 .immediate(_ID_immediate),
                 .alu_op(_ID_alu_op), .shamt(_ID_shamt), 
-                .reg_write(_ID_write_sig)
+                .reg_write(_ID_write_sig), .instr_type(_ID_instr_type)
     );
 
     // In READ state and WRITEBACK state
@@ -350,7 +358,7 @@ module top
     alu alu_mod (
                 //INPUTS
                 .clk(clk), .opcode(_EX_alu_op), .value1(_EX_rs1_val),
-                .value2(_EX_rs2_val), .immediate(_EX_immediate), .shamt(_EX_shamt),
+                .value2(_EX_rs2_val), .immediate(_EX_immediate), .shamt(_EX_shamt), .instr_type(_EX_instr_type),
 
                 //OUTPUTS
                 .result(_EX_alu_result)
@@ -382,6 +390,7 @@ module top
         ID_alu_op <= _ID_alu_op;
         ID_shamt <= _ID_shamt;
         ID_write_sig <= _ID_write_sig;
+	ID_instr_type <= _ID_instr_type;
 
         //set READ registers
         RD_immediate <= _RD_immediate;
@@ -389,6 +398,7 @@ module top
         RD_shamt <= _RD_shamt;
         RD_write_sig <= _RD_write_sig;
         RD_write_reg <= _RD_write_reg;
+        RD_instr_type <= _RD_instr_type;
         RD_rs1_val <= _RD_rs1_val;
         RD_rs2_val <= _RD_rs2_val;
 

@@ -13,3 +13,11 @@
 `define ARTHRIGHT 11'd12
 `define LESS 11'd13
 `define GREATER 11'd14
+
+`define NOTYPE 4'd0
+`define RTYPE 4'd1
+`define ITYPE 4'd2
+`define STYPE 4'd3
+`define SBTYPE 4'd4
+`define UTYPE 4'd5
+`define UJTYPE 4'd6

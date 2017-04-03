@@ -15,7 +15,8 @@ module decoder
 	  output [31:0] immediate,
 	  output [10:0] alu_op,
 	  output [5:0] shamt,
-	  output reg_write
+	  output reg_write,
+	  output [3:0] instr_type
 	);
 
 	logic [6:0] opcode = instruction[6:0];
@@ -45,6 +46,7 @@ module decoder
 		rs2 = instruction[24:20];
 		rd = instruction[11:7];
 		immediate = 32'b0;
+		instr_type = `NOTYPE;
 		alu_op = 11'b0; //TODO:insert all applicable alu ops below //Note-to-shanshan: all zero means no alu now.
 		shamt = instruction[25:20]; //for i instruction type shifting
 		reg_write = 1'b0;
@@ -75,6 +77,7 @@ module decoder
 						alu_op = 4'b0;
 					end
 					immediate = jal_imm;
+					instr_type = `UJTYPE;
 					//reg_write = 1;
 					//rd = 5'b11111; //jal stores address into register
 				end
@@ -84,12 +87,14 @@ module decoder
 					$display("lui $%d, %d", rd, u_imm);
 					immediate = u_imm;
 					alu_op = 4'b0;
+					instr_type = `UTYPE;
 					reg_write = 1;
 				end
 			7'b0010111: begin
 					$display("auipc $%d, %d", rd, u_imm);
 					immediate = u_imm;
 					alu_op = 4'b0001;
+					instr_type = `UTYPE;
 					reg_write = 1;
 				end
 
@@ -160,6 +165,7 @@ module decoder
 							end
 					endcase
 					immediate = sb_imm;
+					instr_type = `SBTYPE;
 				end
 
 			//s_instr
@@ -183,6 +189,7 @@ module decoder
 							end
 					endcase
 					immediate = s_imm;
+					instr_type = `STYPE;
 				end
 			
 			//r_instr
@@ -245,6 +252,7 @@ module decoder
 							end
 					endcase
 					reg_write = 1;
+					instr_type = `RTYPE;
 				end
 			7'b0110011: begin //32R
 					if(func7 == 7'b0000001) begin
@@ -362,6 +370,7 @@ module decoder
 						endcase
 					end
 					reg_write = 1;
+					instr_type = `RTYPE;
 				end
 
 			//i_instr
@@ -386,6 +395,7 @@ module decoder
 						alu_op = 4'b0;
 					end
 					reg_write = 1;
+					instr_type = `ITYPE;
 				end
 			7'b0000011: begin //load
 					case(func3)
@@ -419,6 +429,7 @@ module decoder
 							end
 					endcase
 					immediate = i_imm;
+					instr_type = `ITYPE;
 					reg_write = 1;
 				end
 			7'b0010011: begin //32I
@@ -428,21 +439,21 @@ module decoder
 								if(i_imm == 0 && rd == 0 && rs1 == 0) begin
 									//pseudo-instruction for "addi x0, x0, 0"
 									$display("nop");
-									alu_op = 4'b0;
+									alu_op = `NOTHING;
 								end
 								else if(i_imm == 0) begin
 									//pseudo-instruction for "addi rd, rs1, 0"
 									$display("mv $%d, $%d", rd, rs1);
-									alu_op = 4'b1;
+									alu_op = `ADD;
 								end
 								else if(rs1 == 0) begin
 									//pseudo-instruction for "addi rd, x0, imm"
 									$display("li $%d, %d", rd, i_imm);
-									alu_op = 4'd1;
+									alu_op = `ADD;
 								end
 								else begin
 									$display("addi $%d, $%d, %d", rd, rs1, i_imm);
-									alu_op = 4'b0001;
+									alu_op = `ADD;
 								end
 							end
 						3'b001: begin
@@ -452,7 +463,7 @@ module decoder
 							end
 						3'b010: begin
 								$display("slti $%d, $%d, %d", rd, rs1, i_imm);
-								alu_op = 5'd13;
+								alu_op = `LESS;
 							end
 						3'b011: begin
 								if(i_imm == 1) begin
@@ -500,6 +511,7 @@ module decoder
 							end
 					endcase
 					reg_write = 1;
+					instr_type = `ITYPE;
 				end
 			7'b0011011: begin //64I
 					immediate = i_imm;
@@ -537,6 +549,7 @@ module decoder
 							end
 					endcase
 					reg_write = 1;
+					instr_type = `ITYPE;
 				end
 
 			//default cases
