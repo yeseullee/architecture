@@ -1,4 +1,5 @@
 `include "Sysbus.defs"
+`include "Alu.defs"
 module decoder
 	(
 	  input  clk,
@@ -451,7 +452,7 @@ module decoder
 							end
 						3'b010: begin
 								$display("slti $%d, $%d, %d", rd, rs1, i_imm);
-								alu_op = 4'b0;
+								alu_op = 5'd13;
 							end
 						3'b011: begin
 								if(i_imm == 1) begin
