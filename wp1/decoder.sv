@@ -259,19 +259,19 @@ module decoder
 						case(func3)
 							3'b000: begin
 									$display("mul $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0011;
+									alu_op = `MUL;
 								end
 							3'b001: begin
 									$display("mulh $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0011;
+									alu_op = `MULH;
 								end
 							3'b010: begin
 									$display("mulhsu $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0011;
+									alu_op = `MULHSU;
 								end
 							3'b011: begin
 									$display("mulhu $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0011;
+									alu_op = `MULHU;
 								end
 							3'b100: begin
 									$display("div $%d, $%d, $%d", rd, rs1, rs2);
