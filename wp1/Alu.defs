@@ -20,6 +20,9 @@
 `define MULHU 11'd21
 `define MULHSU 11'd22
 
+`define DIVU 11'd23
+`define REMU 11'd24
+
 
 `define NOTYPE 4'd0
 `define RTYPE 4'd1

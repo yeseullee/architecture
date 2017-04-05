@@ -275,19 +275,19 @@ module decoder
 								end
 							3'b100: begin
 									$display("div $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0100;
+									alu_op = `DIV;
 								end
 							3'b101: begin
 									$display("divu $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0100;
+									alu_op = `DIVU;
 								end
 							3'b110: begin
 									$display("rem $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0;
+									alu_op = `REM;
 								end
 							3'b111: begin
 									$display("remu $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0;
+									alu_op = `REMU;
 								end
 						endcase
 					end
@@ -297,17 +297,17 @@ module decoder
 								case(func7)
 									7'b0000000: begin
 											$display("add $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op = 4'b0001;
+											alu_op = `ADD;
 										end
 									7'b0100000: begin
 											if(rs1 == 0) begin
 												//pseudo-instruction for "sub rd, 0, rs2"
 												$display("neg $%d, $%d", rd, rs2);
-												alu_op = 4'd2;
+												alu_op = `SUB;
 											end
 											else begin
 												$display("sub $%d, $%d, $%d", rd, rs1, rs2);
-												alu_op = 4'd2;
+												alu_op = `SUB;
 											end
 										end
 								endcase
@@ -345,7 +345,7 @@ module decoder
 								end
 							3'b100: begin
 									$display("xor $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0101;
+									alu_op = `XOR;
 								end
 							3'b101: begin
 								case(func7)
@@ -361,11 +361,11 @@ module decoder
 							end
 							3'b110: begin
 									$display("or $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0111;
+									alu_op = `OR;
 								end
 							3'b111: begin
 									$display("and $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0110;
+									alu_op = `AND;
 								end
 						endcase
 					end
@@ -439,7 +439,7 @@ module decoder
 								if(i_imm == 0 && rd == 0 && rs1 == 0) begin
 									//pseudo-instruction for "addi x0, x0, 0"
 									$display("nop");
-									alu_op = `NOTHING;
+									alu_op = `ADD;
 								end
 								else if(i_imm == 0) begin
 									//pseudo-instruction for "addi rd, rs1, 0"

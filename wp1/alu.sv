@@ -23,6 +23,9 @@ module alu
 	//TODO: Deal with shifting + use shamt.
 
 	always_comb begin	
+	    //Both firstVal and secondVal are signed by default.
+	    firstVal = value1;
+	    secondVal = value2;
 		if (instr_type == `RTYPE) begin
 			secondVal = value2;
 		end
@@ -31,43 +34,71 @@ module alu
 		end
 
 		case(opcode)
-			`ADD: result = value1 + secondVal;
-			`SUB: result = value1 - secondVal;
-			`MUL: result = value1 * secondVal;
-			`MULH: begin
-				  firstVal = value1;
-				  secondVal = value2;
+			`ADD: 
+			    begin
+			        //ADD, ADDI, LI, MV, etc. use this.
+			        result = firstVal + secondVal;
+	            end
+			`SUB: result = firstVal - secondVal;
+			`MUL: 
+			    begin
+			        result = firstVal * secondVal;
+			    end
+			`MULH: 
+			    begin
 				  long_result = firstVal * secondVal;
 				  result = long_result[127:64];
 				end
-			`MULHU: begin
-				  u_firstVal = value1;
-				  u_secondVal = value2;
+			`MULHU: 
+			    begin //Unsigned * Unsigned
+				  u_firstVal = firstVal;
+				  u_secondVal = secondVal;
 				  long_result = u_firstVal * u_secondVal;
 				  result = long_result[127:64];
 				end
-			`MULHSU: begin
-				  firstVal = value1;
+			`MULHSU: 
+			    begin // Signed * Unsigned
+				  //firstVal = value1;
 				  u_secondVal = value2;
 				  long_result = firstVal * u_secondVal;
 				  result = long_result[127:64];
 				end
-			`DIV: result = value1 / secondVal;
-			`XOR: result = value1 ^ secondVal;
-			`AND: result = value1 & secondVal;
-			`OR: result = value1 | secondVal;
-			`REM:result = value1 % secondVal;
-			`NOT: result = ~value1;
+			`DIV: 
+			    begin //Signed div
+			        result = firstVal / secondVal;
+		        end
+			`DIVU: 
+			    begin //Unsigned div
+                    u_firstVal = firstVal;
+                    u_secondVal = secondVal;
+                    result = u_firstVal / u_secondVal;       
+                end
+			`XOR: result = firstVal ^ secondVal;
+			`AND: result = firstVal & secondVal;
+			`OR:  result = firstVal | secondVal;
+			
+			`REM: 
+			    begin //remainder from signed div.
+			        result = firstVal % secondVal; 
+		        end
+			`REMU: 
+			    begin //remainder from unsigned div.
+                    u_firstVal = firstVal;
+                    u_secondVal = secondVal;
+                    result = u_firstVal % u_secondVal; 
+			    end
+			`NOT: result = ~firstVal;
 			//`LOGLEFT: result = value1 << secondVal;
 			//`LOGRIGHT: result = value1 >> secondVal;
 			//`ARTHRIGHT: result = value1 >>> secondVal;
-			`LESS: begin
-				if(value1 < secondVal)begin
-					result = 1;
-				end else begin
-					result = 0;
+			`LESS: 
+			    begin
+				    if(firstVal < secondVal) begin
+					    result = 1;
+				    end else begin
+					    result = 0;
+				    end
 				end
-			       end
 			`NOTHING: ;//_result = result;
 			//default: _result = value1;
 		endcase
