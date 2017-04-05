@@ -51,14 +51,14 @@ module direct_cache
 	);
 
 	//variables used in all states
-	logic [63:0] req_addr = 64'b0;
-	logic [63:0] _req_addr = 64'b0;
-	logic [12:0] req_tag = 13'b0;
-	logic [12:0] _req_tag = 13'b0;
-	logic [3:0] state = INITIAL;
-	logic [3:0] next_state = INITIAL;
-	logic [DATA_LENGTH-1:0] content = 512'b0;
-	logic [DATA_LENGTH-1:0] _content = 512'b0;
+	logic [63:0] req_addr;
+	logic [63:0] _req_addr;
+	logic [12:0] req_tag;
+	logic [12:0] _req_tag;
+	logic [3:0] state;
+	logic [3:0] next_state;
+	/*logic [DATA_LENGTH-1:0] content;
+	logic [DATA_LENGTH-1:0] _content;
 
 	//cache management-related variables
 	logic [CACHE_TAG-1:0] tag;
@@ -69,9 +69,9 @@ module direct_cache
 
 	//state specific variables
 	logic cache_hit;			//used in LOOKUP only (1 = hit, 0 = miss)
-	logic [8:0] ptr = 0;		//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
-	logic [8:0] next_ptr = 0;	//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
-	logic [63:0] cur_data;		//used in RECEIVE and RESPOND to denote data currently being transmitted
+	logic [8:0] ptr;		//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
+	logic [8:0] next_ptr;		//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
+	logic [63:0] cur_data;		//used in RECEIVE and RESPOND to denote data currently being transmitted*/
 
 	//multiple always comb blocks used to keep verilator happy
 	//accept requests from the processor: INITIAL, ACCEPT
@@ -94,7 +94,7 @@ module direct_cache
 	end
 
 	//acknowledge receiving request from processor: ACKPROC
-	always_comb begin
+/*	always_comb begin
 		p_bus_reqack = 0;
 		case(state)
 			ACKPROC: begin
@@ -229,25 +229,28 @@ module direct_cache
 				end
 		endcase
 	end
-
+*/
 	always_ff @ (posedge clk) begin
 		if(reset) begin
 			state <= INITIAL;
+			req_addr = 0;
+			req_tag = 0;
+			/*content = 0;
 			ptr <= 0;
-			for(int i = 0; i < 8; i++) begin
-				content[i] <= 0;
-			end
+			for(int i = 0; i < NUM_CACHE_SETS; i++) begin
+				cache[i] <= 0;
+			end*/
 		end
 
 		//write values from wires to register
-		ptr <= next_ptr;
 		state <= next_state;
 		req_addr <= _req_addr;
 		req_tag <= _req_tag;
-		content <= _content;
+		/*content <= _content;
+		ptr <= next_ptr;
 		for(int i = 0; i < NUM_CACHE_SETS; i++) begin
 			cache[i] <= _cache[i];
-		end
+		end*/
 	end
 
 endmodule
