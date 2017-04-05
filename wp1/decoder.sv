@@ -314,7 +314,7 @@ module decoder
 							end
 							3'b001: begin
 									$display("sll $%d, $%d, $%d", rd, rs1, rs2);
-									alu_op = 4'b0;
+									alu_op = `SLL;
 								end
 							3'b010: begin
 									if(rs1 == 0) begin
@@ -351,11 +351,11 @@ module decoder
 								case(func7)
 									7'b0000000: begin
 											$display("srl $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op = 4'b0;
+											alu_op = `SRL;
 										end
 									7'b0100000: begin
 											$display("sra $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op = 4'b0;
+											alu_op = `SRA;
 										end
 								endcase
 							end
@@ -459,7 +459,7 @@ module decoder
 						3'b001: begin
 								$display("slli $%d, $%d %d", rd, rs1, shamt);
 								immediate = {26'b0, shamt};
-								alu_op = 4'b0;
+								alu_op = `SLL;
 							end
 						3'b010: begin
 								$display("slti $%d, $%d, %d", rd, rs1, i_imm);
@@ -469,22 +469,22 @@ module decoder
 								if(i_imm == 1) begin
 									//pseudo-instruction for "slitu rd, rs1, 1"
 									$display("seqz $%d, $%d", rd, rs1);
-									alu_op = 4'b0;
+									alu_op = `SLTIU;
 								end
 								else begin
 									$display("sltiu $%d, $%d, %d", rd, rs1, i_imm);
-									alu_op = 4'b0;
+									alu_op = `SLTIU;
 								end
 							end
 						3'b100: begin
 								if(&i_imm == 1'b1) begin
 									//pseudo-instruction for "xori rd, rs1, -1"
 									$display("not $%d, $%d", rd, rs1);
-									alu_op = 4'b0;
+									alu_op = `XOR;
 								end
 								else begin
 									$display("xori $%d, $%d, %d", rd, rs1, i_imm);
-									alu_op = 4'b0101;
+									alu_op = `XOR;
 								end
 							end
 						3'b101: begin
@@ -492,22 +492,22 @@ module decoder
 									7'b0000000: begin
 											$display("srli $%d, $%d %d", rd, rs1, shamt);
 											immediate = {26'b0, shamt};
-											alu_op = 4'b0;
+											alu_op = `SRL;
 										end
 									7'b0100000: begin
 											$display("srai $%d, $%d %d", rd, rs1, shamt);
 											immediate = {26'b0, shamt};
-											alu_op = 4'b0;
+											alu_op = `SRA;
 										end
 								endcase
 							end
 						3'b110: begin
 								$display("ori $%d, $%d, %d", rd, rs1, i_imm);
-								alu_op = 4'b0111;
+								alu_op = `OR;
 							end
 						3'b111: begin
 								$display("andi $%d, $%d, %d", rd, rs1, i_imm);
-								alu_op = 4'b0110;
+								alu_op = `AND;
 							end
 					endcase
 					reg_write = 1;

@@ -9,12 +9,15 @@
 `define OR 11'd7
 `define REM 11'd8
 `define NOT 11'd9
-`define LOGLEFT 11'd10
-`define LOGRIGHT 11'd11
-`define ARTHRIGHT 11'd12
-`define LESS 11'd13
-`define GREATER 11'd14
+`define SLL 11'd10
+`define SRL 11'd11
+`define SRA 11'd12
 
+`define LESS 11'd13
+`define LESSU 11'd14
+`define SLTIU 11'd15
+
+`define GREATER 11'd16
 
 `define MULH 11'd20
 `define MULHU 11'd21
