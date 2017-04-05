@@ -320,27 +320,27 @@ module decoder
 									if(rs1 == 0) begin
 										//pseudo-instruction for "slt rd, x0, rs2"
 										$display("sgtz $%d, $%d", rd, rs2);
-										alu_op = 4'b0;
+										alu_op = `LESS;
 									end
 									else if(rs2 == 0) begin
 										//pseudo-instruction for "slt rd, rs1, x0"
 										$display("sltz $%d, $%d", rd, rs1);
-										alu_op = 4'b0;
+										alu_op = `LESS;
 									end
 									else begin
 										$display("slt $%d, $%d, $%d", rd, rs1, rs2);
-										alu_op = 4'b0;
+										alu_op = `LESS;
 									end
 								end
 							3'b011: begin
 									if(rs1 == 0) begin
 										//pseudo-instruction for "sltu rd, x0, rs2"
 										$display("snez $%d, $%d", rd, rs2);
-										alu_op = 4'b0;
+										alu_op = `LESSU;
 									end
 									else begin
 										$display("sltu $%d, $%d, $%d", rd, rs1, rs2);
-										alu_op = 4'b0;
+										alu_op = `LESSU;
 									end
 								end
 							3'b100: begin
