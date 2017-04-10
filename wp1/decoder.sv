@@ -30,6 +30,7 @@ module decoder
 	always_comb begin
 		if(prev_instr != instruction) begin
 			opcode = instruction[6:0];
+			//$display("The following instruction is: %h", instruction);
 		end
 		else begin
 			opcode = 7'b0000000;
