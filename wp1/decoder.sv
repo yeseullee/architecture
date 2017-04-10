@@ -173,19 +173,19 @@ module decoder
 			7'b0100011: begin
 					case(func3)
 						3'b000: begin
-								$display("sb $%d, %d($%d)", rs1, s_imm, rs2);
+								$display("sb $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = 4'b0;
 							end
 						3'b001: begin
-								$display("sh $%d, %d($%d)", rs1, s_imm, rs2);
+								$display("sh $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = 4'b0;
 							end
 						3'b010: begin
-								$display("sw $%d, %d($%d)", rs1, s_imm, rs2);
+								$display("sw $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = 4'b0;
 							end
 						3'b011: begin
-								$display("sd $%d, %d($%d)", rs1, s_imm, rs2);
+								$display("sd $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = 4'b0;
 							end
 					endcase
