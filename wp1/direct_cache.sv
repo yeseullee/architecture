@@ -1,9 +1,11 @@
 `include "Sysbus.defs"
 module direct_cache
 	#(
+		//Memory bus constants
 		BUS_DATA_WIDTH = 64,
 		BUS_TAG_WIDTH = 13,
 
+		//State values
 		INITIAL = 0,
 		ACCEPT = 1,
 		ACKPROC = 2,
@@ -14,6 +16,7 @@ module direct_cache
 		RESPOND = 7,
 		RESPACK = 8,
 
+		//Cache constants
 		CACHE_TAG = 56,		//tag = bits in address (64) - bits in offset (3) - bits in index (5)
 		CACHE_INDEX = 5,	//index = log2(32) (# sets in the cache)
 		NUM_CACHE_SETS = 32,
@@ -27,38 +30,38 @@ module direct_cache
 
 
 		// interface to connect to the bus on the procesor side
-		input p_bus_reqcyc,							//set to 1 when a read is requested
-		output  p_bus_reqack,						//acknowledgement of request from processor
+		input p_bus_reqcyc,				//set to 1 when a read is requested
+		output  p_bus_reqack,				//acknowledgement of request from processor
 		input [BUS_DATA_WIDTH-1:0] p_bus_req,		//the address I wanna read
 		input [BUS_TAG_WIDTH-1:0] p_bus_reqtag,		//tag associated with request (useful in superscalar)
 
-		output  p_bus_respcyc,						//set to 1 when ready to respond
-		input p_bus_respack, 						//acknowledgement by processor when receiving the data
+		output  p_bus_respcyc,				//set to 1 when ready to respond
+		input p_bus_respack, 				//acknowledgement by processor when receiving the data
 		output  [BUS_DATA_WIDTH-1:0] p_bus_resp,	//content of requested address
 		output  [BUS_TAG_WIDTH-1:0] p_bus_resptag,	//tag associated with response (useful in superscalar)
 
 
 		// interface to connect to the bus on the dram(memory) side
-		output m_bus_reqcyc,						//set to 1 to request a read from memory
-		input  m_bus_reqack,						//acknowledgement by memory when request received
+		output m_bus_reqcyc,				//set to 1 to request a read from memory
+		input  m_bus_reqack,				//acknowledgement by memory when request received
 		output [BUS_DATA_WIDTH-1:0] m_bus_req,		//the address I wanna read
 		output [BUS_TAG_WIDTH-1:0] m_bus_reqtag,	//tag associated with request (useful in superscalar)
 
-		input  m_bus_respcyc,						//set to 1 when memory has requested information
-		output m_bus_respack,						//acknowlegement of response sent to memory
+		input  m_bus_respcyc,				//set to 1 when memory has requested information
+		output m_bus_respack,				//acknowlegement of response sent to memory
 		input  [BUS_DATA_WIDTH-1:0] m_bus_resp,		//the contents of the requested address
 		input  [BUS_TAG_WIDTH-1:0] m_bus_resptag	//tag associated with request (useful in superscalar)
 	);
 
 	//variables used in all states
-	logic [63:0] req_addr = 64'b0;
-	logic [63:0] _req_addr = 64'b0;
-	logic [12:0] req_tag = 13'b0;
-	logic [12:0] _req_tag = 13'b0;
-	logic [3:0] state = INITIAL;
-	logic [3:0] next_state = INITIAL;
-	logic [DATA_LENGTH-1:0] content = 512'b0;
-	logic [DATA_LENGTH-1:0] _content = 512'b0;
+	logic [63:0] req_addr;
+	logic [63:0] _req_addr;
+	logic [12:0] req_tag;
+	logic [12:0] _req_tag;
+	logic [3:0] state;
+	logic [3:0] next_state;
+	logic [DATA_LENGTH-1:0] content;
+	logic [DATA_LENGTH-1:0] _content;
 
 	//cache management-related variables
 	logic [CACHE_TAG-1:0] tag;
@@ -67,22 +70,27 @@ module direct_cache
 	logic [CACHE_LENGTH-1:0] cache[NUM_CACHE_SETS-1:0];
 	logic [CACHE_LENGTH-1:0] _cache[NUM_CACHE_SETS-1:0];
 
-	//state specific variables
-	logic cache_hit;			//used in LOOKUP only (1 = hit, 0 = miss)
-	logic [8:0] ptr = 0;		//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
-	logic [8:0] next_ptr = 0;	//used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
-	logic [63:0] cur_data;		//used in RECEIVE and RESPOND to denote data currently being transmitted
+	//variables used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
+	logic [8:0] ptr;
+	logic [8:0] next_ptr;
+	logic [63:0] cur_data;		//denotes data currently being transmitted
 
-	//multiple always comb blocks used to keep verilator happy
+
+	//NOTE: multiple always comb blocks used to keep verilator happy
+	//	processor resp, ack, and cyc variables cannot be set or used within the same block
+   
 	//accept requests from the processor: INITIAL, ACCEPT
 	always_comb begin
 		case(state)
 			INITIAL: begin
-					next_state = ACCEPT; //Initialize the system
+					//Initialize the system
+					next_state = ACCEPT;
 				end
 			ACCEPT: begin	//wait for requests from the processor
 					_req_addr = p_bus_req;
 					_req_tag = p_bus_reqtag;
+					//_content = 0;
+					next_ptr = 0;
 					if(p_bus_reqcyc == 1) begin
 						next_state = ACKPROC;
 					end
@@ -104,46 +112,41 @@ module direct_cache
 		endcase
 	end
 
-	//check if request is already in the cache: LOOKUP
+	//look for requested memory and insert into cache if needed: LOOKUP, DRAM, RECEIVE, UPDATE
 	always_comb begin
+		//misc related variables
+		m_bus_reqcyc = 0;
+		m_bus_respack = 0;
+		_content = content;
+		for(int i = 0; i < NUM_CACHE_SETS; i++) begin
+			_cache[i] = cache[i];
+		end
+	   
 		//extract tag, index, offset from address
 		tag = req_addr[63:63-CACHE_TAG+1];
 		index = req_addr[63-CACHE_TAG:OFFSET];
 		offset = req_addr[OFFSET-1:0];
+	   
 		case(state)
 			LOOKUP: begin
-					//compare to existing cache and set cache_hit and _content respectively
+					//compare to existing cache and set next_state and _content respectively
+					next_state = DRAM;
+					/*
 					if(cache[index][CACHE_LENGTH-1] == 1) begin
 						if(cache[index][CACHE_LENGTH-2:DATA_LENGTH] == tag) begin
-							cache_hit = 1;
+							next_state = RESPOND;
 							_content = cache[index][DATA_LENGTH-1:0];
 						end
 						else begin
-							cache_hit = 0;
+							next_state = DRAM;
 							_content = 0;
 						end
 					end
 					else begin
-						cache_hit = 0;
-						_content = 0;
-					end
-
-					//set state depending on results
-					if(cache_hit == 1) begin
-						next_state = RESPOND;
-					end
-					else begin
 						next_state = DRAM;
-					end
+						_content = 0;
+					end*/
 				end
-		endcase
-	end
-
-	//handle interaction with memory upon cache miss: DRAM, RECEIVE
-	always_comb begin
-		m_bus_reqcyc = 0;
-		m_bus_respack = 0;
-		case(state)
 			DRAM: begin
 					//send request to memory
 					m_bus_reqcyc = 1;
@@ -152,7 +155,6 @@ module direct_cache
 
 					//determine if memory received request
 					if(m_bus_reqack == 1) begin
-						next_ptr = 0;
 						next_state = RECEIVE;
 					end
 					else begin
@@ -175,20 +177,14 @@ module direct_cache
 						end
 					end
 					else begin
+					   	m_bus_respack = 0;
 						next_state = RECEIVE;
 					end
 				end
-		endcase
-	end
-
-	//insert new block received from memory into the cache: UPDATE
-	always_comb begin
-		for(int i = 0; i < NUM_CACHE_SETS; i++) begin
-			_cache[i] = cache[i];
-		end
-		case(state)
-			UPDATE: begin	//insert the new block into the cache
-					_cache[index] = {1'b1, tag, content};
+			UPDATE: begin
+					//insert the new block into the cache
+					m_bus_respack = 1;
+					//_cache[index] = {1'b1, tag, content};
 					next_state = RESPOND;
 				end
 		endcase
@@ -196,13 +192,11 @@ module direct_cache
 
 	//respond to processor: RESPOND
 	always_comb begin
-		_content = content;
 		p_bus_respcyc = 0;
-
 		case(state)
 			RESPOND:begin
 					p_bus_respcyc = 1;
-					p_bus_resp = content[(64*ptr)-1 -: 64];
+					p_bus_resp = _content[64*ptr +: 63];
 					next_ptr = ptr;
 					next_state = RESPACK;
 				end
@@ -216,7 +210,6 @@ module direct_cache
 					if(p_bus_respack == 1) begin
 						next_ptr = ptr + 1;
 						if(ptr == 7) begin
-							next_ptr = 0;
 							next_state = ACCEPT;
 						end
 						else begin
@@ -224,7 +217,7 @@ module direct_cache
 						end
 					end
 					else begin
-						next_state = RESPOND;
+						next_state = RESPACK;
 					end
 				end
 		endcase
@@ -233,18 +226,21 @@ module direct_cache
 	always_ff @ (posedge clk) begin
 		if(reset) begin
 			state <= INITIAL;
+			req_addr <= 0;
+			req_tag <= 0;
+			content <= 0;
 			ptr <= 0;
-			for(int i = 0; i < 8; i++) begin
-				content[i] <= 0;
+			for(int i = 0; i < NUM_CACHE_SETS; i++) begin
+				cache[i] <= 0;
 			end
 		end
 
 		//write values from wires to register
-		ptr <= next_ptr;
 		state <= next_state;
 		req_addr <= _req_addr;
 		req_tag <= _req_tag;
 		content <= _content;
+		ptr <= next_ptr;
 		for(int i = 0; i < NUM_CACHE_SETS; i++) begin
 			cache[i] <= _cache[i];
 		end
