@@ -1,5 +1,5 @@
 `include "Sysbus.defs"
-module direct_cache
+module set_cache
 	#(
 		//Memory bus constants
 		BUS_DATA_WIDTH = 64,
