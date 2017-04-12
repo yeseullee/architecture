@@ -10,7 +10,7 @@ CFILES=$(wildcard *.cpp)
 all: obj_dir/Vtop
 
 obj_dir/Vtop: obj_dir/Vtop.mk
-	$(MAKE) -j5 -C obj_dir/ -f Vtop.mk CXX="ccache g++"
+	$(MAKE) -j5 -C obj_dir/ -f Vtop.mk CXX="ccache g++ -std=c++11"
 
 obj_dir/Vtop.mk: $(VFILES) $(CFILES) 
 	verilator -Wall -Wno-LITENDIAN -Wno-lint -O3 $(TRACE) --no-skip-identical --cc top.sv \

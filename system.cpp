@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <ncurses.h>
 #include <syscall.h>
+#include <set>
 #include "system.h"
 #include "Vtop.h"
 
@@ -21,6 +22,7 @@ using namespace std;
  * Bus request tag fields
  */
 enum {
+    INVAL  = 0b100,
     READ   = 0b1,
     WRITE  = 0b0,
     MEMORY = 0b0001,
@@ -45,6 +47,9 @@ double sc_time_stamp() {
 static long ecall_ram = NULL;
 static long ecall_brk = NULL;
 static unsigned ecall_ramsize = 0;
+
+list<pair<uint64_t, int> > tx_queue;
+map<long long, pair<char, char> > pending_writes;
 
 System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, char* argv[], int ps_per_clock)
     : top(top), ramsize(ramsize), max_elf_addr(0), show_console(false), interrupts(0), rx_count(0)
@@ -244,7 +249,7 @@ uint64_t System::load_elf(const char* filename) {
 
     if (!elf_header.e_phnum) { // loading simple object file
         Elf_Scn* scn = NULL;
-        while ((scn = elf_nextscn(elf, scn)) != NULL) {
+        while((scn = elf_nextscn(elf, scn)) != NULL) {
             GElf_Shdr shdr;
             gelf_getshdr(scn, &shdr);
             if (shdr.sh_type != SHT_PROGBITS) continue;
@@ -256,7 +261,7 @@ uint64_t System::load_elf(const char* filename) {
             break; // just load the first one
         }
     } else {
-        for (unsigned phn = 0; phn < elf_header.e_phnum; phn++) {
+        for(unsigned phn = 0; phn < elf_header.e_phnum; phn++) {
             GElf_Phdr phdr;
             gelf_getphdr(elf, phn, &phdr);
 
@@ -309,8 +314,21 @@ uint64_t System::load_elf(const char* filename) {
 extern "C" {
 
 #define ECALL_DEBUG 0
+#define ECALL_MEMGUARD (10*1024)
+#define ECALL_MEMARGS 4
+
+    void do_pending_write(long long addr, long long val, int size) {
+        for(int ofs = 0; ofs < size; ++ofs) {
+            pending_writes[addr+ofs].first = (char)val;
+            val >>= 8;
+        }
+    }
 
     void do_ecall(long long a7, long long a0, long long a1, long long a2, long long a3, long long a4, long long a5, long long a6, long long* a0ret) {
+        char* memarg_ptrs[ECALL_MEMARGS];
+        char memarg_content[ECALL_MEMARGS][ECALL_MEMGUARD];
+        int memargs = 0;
+
         switch(a7) {
 
         case __NR_munmap:
@@ -326,7 +344,14 @@ extern "C" {
             assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
             return do_ecall(__NR_brk, a1, 0, 0, 0, 0, 0, 0, a0ret);
 
-#define ECALL_OFFSET(v) do { (v) += ecall_ram; assert((v) < (ecall_ram + ecall_ramsize)); } while(0)
+#define ECALL_OFFSET(v)                                              \
+    do {                                                             \
+        v += ecall_ram;                                              \
+        memarg_ptrs[memargs] = (char*)v;                             \
+        memcpy(memarg_content[memargs++], (void*)v, ECALL_MEMGUARD); \
+        assert(v < ecall_ram+ecall_ramsize);                         \
+    } while(0)
+
         case __NR_open:
         case __NR_poll:
         case __NR_access:
@@ -597,7 +622,25 @@ extern "C" {
             break;
         }
         if (ECALL_DEBUG) cerr << "Calling syscall " << a7 << endl;
+        for(auto& m : pending_writes) {
+            char* ram = (char*)ecall_ram;
+            m.second.second = ram[m.first];
+            ram[m.first] = m.second.first;
+        }
         *a0ret = syscall(a7, a0, a1, a2, a3, a4, a5, a6);
+        for(auto& m : pending_writes) {
+            char* ram = (char*)ecall_ram;
+            ram[m.first] = m.second.second;
+        }
+        set<long long> invalidations;
+        for( ; memargs; --memargs)
+            for(int ofs = 0; ofs < ECALL_MEMGUARD && (long long)(memarg_ptrs[memargs])+ofs < ecall_ram+ecall_ramsize; ++ofs)
+                if (memarg_content[memargs][ofs] != memarg_ptrs[memargs][ofs]) {
+                    if (ECALL_DEBUG) cerr << "Invalidating " << ofs << " on argument " << memargs << endl;
+                    invalidations.insert(((long long)(memarg_ptrs[memargs])+ofs-ecall_ram) & ~0x3f);
+                }
+        for(auto& i : invalidations)
+            tx_queue.push_front(make_pair(i, INVAL << 13));
     }
 
 }
