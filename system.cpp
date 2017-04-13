@@ -712,7 +712,7 @@ extern "C" {
             for(int ofs = 0; ofs < ECALL_MEMGUARD && (m.first & ~63)+ofs < sys->ramsize; ++ofs)
                 if (m.second[ofs] != sys->ram[(m.first & ~63) + ofs]) {
                     if (ECALL_DEBUG) cerr << "Invalidating " << ofs << " on argument " << m.first << endl;
-                    invalidations.insert(m.first & ~0x3f);
+                    invalidations.insert(m.first & ~63);
                 }
         for(auto& i : invalidations)
             tx_queue.push_front(make_pair(i, INVAL << 13));

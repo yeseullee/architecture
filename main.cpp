@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
 	tfp->open ("../trace.vcd");
 #endif
 
-#define TICK() do {                    \
+#define TICK() do {                        \
 		top.clk = !top.clk;                \
 		top.eval();                        \
 		if (tfp) tfp->dump(main_time);     \

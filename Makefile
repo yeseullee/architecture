@@ -3,7 +3,7 @@
 RUNELF=/shared/cse502/tests/wp1/prog1.o
 
 TRACE=--trace
-HAVETLB=y
+HAVETLB=n
 
 VFILES=$(wildcard *.sv)
 CFILES=$(wildcard *.cpp)
