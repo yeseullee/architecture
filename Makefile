@@ -3,6 +3,7 @@
 RUNELF=/shared/cse502/tests/wp1/prog1.o
 
 TRACE=--trace
+HAVETLB=y
 
 VFILES=$(wildcard *.sv)
 CFILES=$(wildcard *.cpp)
@@ -20,7 +21,7 @@ obj_dir/Vtop.mk: $(VFILES) $(CFILES)
 	-LDFLAGS -lncurses -LDFLAGS -lelf
 
 run: obj_dir/Vtop
-	cd obj_dir/ && ./Vtop $(RUNELF)
+	cd obj_dir/ && env HAVETLB=$(HAVETLB) ./Vtop $(RUNELF)
 
 clean:
 	rm -rf obj_dir/ dramsim2/results trace.vcd core 

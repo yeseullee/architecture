@@ -20,19 +20,16 @@ int main(int argc, char* argv[]) {
 	Vtop top;
 	System sys(&top, RAM_SIZE, ramelf, argc-1, argv+1, ps_per_clock);
 
-	// build the system and load the image
-	char *ram = (char *)sys.get_ram_address();
-	
 	// (argc, argv) sanity check
 	cerr << "===== Printing arguments of the program..." << endl;
 	for (int j = 0; j <= argc-1; j++) {
-		unsigned long guest_addr = INIT_STACK_POINTER + j * sizeof(uint64_t);
-		uint64_t val = *(uint64_t *)(ram + guest_addr);
+		unsigned long guest_addr = sys.virt_to_phy(top.stackptr) + j * sizeof(uint64_t);
+		uint64_t val = *(uint64_t *)(sys.ram + guest_addr);
 
 		if (0 == j) {
 			cerr << dec << "== argc: " << val << endl;
 		} else {
-			char *arg_ptr = (char *)(ram + val);
+			char *arg_ptr = sys.ram + val;
 			char *arg_ptr1 = arg_ptr;
 			while (*arg_ptr++);
 			unsigned len = arg_ptr - arg_ptr1;

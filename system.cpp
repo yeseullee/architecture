@@ -44,34 +44,37 @@ double sc_time_stamp() {
     return main_time;
 }
 
-static long ecall_ram = NULL;
-static long ecall_brk = NULL;
-static unsigned ecall_ramsize = 0;
+System* sys;
+static long long ecall_brk = NULL;
 
 list<pair<uint64_t, int> > tx_queue;
-map<long long, pair<char, char> > pending_writes;
 
 System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, char* argv[], int ps_per_clock)
     : top(top), ramsize(ramsize), max_elf_addr(0), show_console(false), interrupts(0), rx_count(0)
 {
-    ram = (char*)malloc(ramsize);
-    assert(ram);
-    top->stackptr = (uint64_t)ram + ramsize - 4*MEGA;
+    sys = this;
 
-    uint64_t* argvp = (uint64_t*)top->stackptr + 1;
-    argvp[-1] = argc;
-    char* argvtgt = (char*)&argvp[argc];
-    for(int arg = 0; arg < argc; ++arg) {
+    char* HAVETLB = getenv("HAVETLB");
+    use_virtual_memory = HAVETLB && (toupper(*HAVETLB) == 'Y');
+
+    top->satp = satp = get_phys_page();
+    ram = (char*)mmap(NULL, ramsize, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, 0, 0);
+    assert(ram);
+    top->stackptr = virt_to_phy(ramsize - 4*MEGA)+PAGE_SIZE;
+
+    uint64_t* argvp = (uint64_t*)(ram+virt_to_phy(top->stackptr));
+    assert((char*)argvp < ram+ramsize);
+    argvp[0] = argc;
+    char* argvtgt = (char*)&argvp[argc+1];
+    for(int arg = 1; arg <= argc; ++arg) {
         argvp[arg] = argvtgt - ram;
-        argvtgt = 1+stpcpy(argvtgt, argv[arg]);
+        argvtgt = 1+stpcpy(argvtgt, argv[arg-1]);
     }
 
     // load the program image
     if (ramelf) top->entry = load_elf(ramelf);
 
-    ecall_ram = (long)ram;
-    ecall_ramsize = ramsize;
-    ecall_brk = (long)ram + max_elf_addr;
+    ecall_brk = (long long)ram + max_elf_addr;
 
     // create the dram simulator
     dramsim = DRAMSim::getMemorySystemInstance("DDR2_micron_16M_8b_x8_sg3E.ini", "system.ini", "../dramsim2", "dram_result", ramsize / MEGA);
@@ -82,7 +85,7 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
 }
 
 System::~System() {
-    free(ram);
+    munmap(ram, ramsize);
 
     if (show_console) {
         sleep(2);
@@ -123,7 +126,7 @@ void System::tick(int clk) {
         if (ch != ERR) {
             if (!(interrupts & (1<<IRQ_KBD))) {
                 interrupts |= (1<<IRQ_KBD);
-                tx_queue.push_back(make_pair(IRQ_KBD, (int)IRQ));
+                tx_queue.push_back(make_pair(IRQ_KBD,(int)IRQ));
                 keys.push(ch);
             }
         }
@@ -180,6 +183,7 @@ void System::tick(int clk) {
         switch(cmd) {
         case MEMORY:
             xfer_addr = top->bus_req & ~0x3fULL;
+            //assert(!(xfer_addr & 7));
             if (addr_to_tag.find(xfer_addr)!=addr_to_tag.end()) {
                 cerr << "Access for " << std::hex << xfer_addr << " already outstanding. Ignoring..." << endl;
             } else {
@@ -194,7 +198,7 @@ void System::tick(int clk) {
         case MMIO:
             xfer_addr = top->bus_req;
             assert(!(xfer_addr & 7));
-            if (!isWrite) tx_queue.push_back(make_pair(*((uint64_t*)(&ram[xfer_addr])), top->bus_reqtag)); // hack - real I/O takes time
+            if (!isWrite) tx_queue.push_back(make_pair(*((uint64_t*)(&ram[xfer_addr])),top->bus_reqtag)); // hack - real I/O takes time
             break;
 
         default:
@@ -211,13 +215,86 @@ void System::dram_read_complete(unsigned id, uint64_t address, uint64_t clock_cy
     assert(tag != addr_to_tag.end());
     uint64_t orig_addr = tag->second.first;
     for(int i = 0; i < 64; i += 8) {
-        //cerr << "fill data from " << std::hex << (orig_addr+(i&63)) <<  ": " << tx_queue.rbegin()->first << " on tag " << tag->second.second << endl;
-        tx_queue.push_back(make_pair(*((uint64_t*)(&ram[((orig_addr&(~63))+((orig_addr+i)&63))])), tag->second.second));
+        tx_queue.push_back(make_pair(*((uint64_t*)(&ram[((orig_addr&(~63))+((orig_addr+i)&63))])),tag->second.second));
     }
     addr_to_tag.erase(tag);
 }
 
 void System::dram_write_complete(unsigned id, uint64_t address, uint64_t clock_cycle) {
+}
+
+uint64_t System::get_phys_page() {
+    int page_no;
+    do {
+        page_no = rand()%(ramsize/PAGE_SIZE);
+    } while(phys_page_used[page_no]);
+    phys_page_used[page_no] = true;
+    return page_no;
+}
+
+#define VM_DEBUG 0
+
+uint64_t System::get_pte(uint64_t base_addr, int vpn, bool isleaf) {
+    uint64_t addr = base_addr + vpn*8;
+    uint64_t pte = *(uint64_t*) & ram[addr];
+    uint64_t page_no = pte >> 10;
+    if(!(pte & VALID_PAGE)) {
+        page_no = get_phys_page();
+        if (isleaf)
+            (*(uint64_t*)&ram[addr]) = (page_no<<10) | VALID_PAGE;
+        else
+            (*(uint64_t*)&ram[addr]) = (page_no<<10) | VALID_PAGE_DIR;
+        pte = *(uint64_t*) & ram[addr];
+        if (VM_DEBUG) {
+            cout << "Addr:" << std::dec << addr << endl;
+            cout << "Initialized page no " << std::dec << page_no << endl;
+        }
+    }
+    assert(page_no < ramsize/PAGE_SIZE);
+    return pte;
+}
+
+uint64_t System::virt_to_phy(const uint64_t virt_addr) {
+
+    if (!use_virtual_memory) return virt_addr;
+
+    uint64_t phy_offset, tmp_virt_addr;
+    uint64_t pt_base_addr = satp;
+    phy_offset = virt_addr & 0x0fff;
+    tmp_virt_addr = virt_addr >> 12;
+    for(int i = 0; i < 4; i++) {
+        int vpn = tmp_virt_addr & (0x01ff << 9*(3-i));
+        uint64_t pte = get_pte(pt_base_addr, vpn, i == 3);
+        pt_base_addr = ((pte&0x0000ffffffffffff)>>10)<<12;
+    }
+    return (pt_base_addr | phy_offset);
+}
+
+uint64_t System::load_elf_parts(int fd, size_t part_size, const uint64_t virt_addr) {
+    uint64_t phy_addr = virt_to_phy(virt_addr);
+    if (VM_DEBUG) cout << "Virtual addr: " << std::hex << virt_addr << " Physical addr: " << phy_addr << endl;
+    size_t len = read(fd, (void*)(ram + phy_addr/* addr */), part_size);
+    assert(len == part_size);
+    return (virt_addr + part_size);
+}
+
+void System::load_segment(const int fd, const size_t header_size, uint64_t virt_addr) {
+    int total_full_pages = header_size/PAGE_SIZE;
+    size_t part_size = part_size = (((virt_addr >> 12) + 1) << 12) - virt_addr;
+    size_t last_page_len = header_size % PAGE_SIZE;
+    if (VM_DEBUG) {
+        cout << "Total full pages: " << total_full_pages << endl;
+        cout << "Total size: " << header_size << endl;
+        cout << "Total last page size: " << last_page_len << endl;
+    }
+    for(int i = 0; i < total_full_pages; i++) {
+      virt_addr = load_elf_parts(fd, part_size, virt_addr);
+      part_size = 4096;
+      assert(virt_addr%4096 == 0);
+    }
+    if(last_page_len > 0) {
+      virt_addr = load_elf_parts(fd, last_page_len, virt_addr);
+    }
 }
 
 uint64_t System::load_elf(const char* filename) {
@@ -229,11 +306,11 @@ uint64_t System::load_elf(const char* filename) {
     }
 
     // open the elf file
-    int fileDescriptor = open(filename, O_RDONLY);
-    assert(fileDescriptor != -1);
+    int fd = open(filename, O_RDONLY);
+    assert(fd != -1);
 
     // start reading the file
-    Elf* elf = elf_begin(fileDescriptor, ELF_C_READ, NULL);
+    Elf* elf = elf_begin(fd, ELF_C_READ, NULL);
     if (NULL == elf) {
         cerr << "Could not initialize the ELF data structures" << endl;
         exit(-1);
@@ -256,8 +333,8 @@ uint64_t System::load_elf(const char* filename) {
             if (!(shdr.sh_flags & SHF_EXECINSTR)) continue;
 
             // copy segment content from file to memory
-            assert(-1 != lseek(fileDescriptor, shdr.sh_offset, SEEK_SET));
-            assert(shdr.sh_size == read(fileDescriptor, (void*)(ram + 0/* addr */), shdr.sh_size));
+            assert(-1 != lseek(fd, shdr.sh_offset, SEEK_SET));
+            load_segment(fd, shdr.sh_size, 0);
             break; // just load the first one
         }
     } else {
@@ -266,22 +343,12 @@ uint64_t System::load_elf(const char* filename) {
             gelf_getphdr(elf, phn, &phdr);
 
             switch(phdr.p_type) {
-            case PT_LOAD:
+            case PT_LOAD: {
                 if ((phdr.p_vaddr + phdr.p_memsz) > ramsize) {
                     cerr << "Not enough 'physical' ram" << endl;
                     exit(-1);
                 }
-
-                // initialize the memory segment to zero
-                memset(ram + phdr.p_vaddr, 0, phdr.p_memsz);
-                // copy segment content from file to memory
-                assert(-1 != lseek(fileDescriptor, phdr.p_offset, SEEK_SET));
-                assert(phdr.p_filesz == read(fileDescriptor, (void*)(ram + phdr.p_vaddr), phdr.p_filesz));
-
-                if (max_elf_addr < (phdr.p_vaddr + phdr.p_filesz))
-                    max_elf_addr = (phdr.p_vaddr + phdr.p_filesz);
-
-                cerr << "Loaded ELF header #" << phn << "."
+                cout << "Loading ELF header #" << phn << "."
                     << " offset: "   << phdr.p_offset
                     << " filesize: " << phdr.p_filesz
                     << " memsize: "  << phdr.p_memsz
@@ -289,7 +356,15 @@ uint64_t System::load_elf(const char* filename) {
                     << " paddr: "    << std::hex << phdr.p_paddr << std::dec
                     << " align: "    << phdr.p_align
                     << endl;
+
+                // copy segment content from file to memory
+                assert(-1 != lseek(fd, phdr.p_offset, SEEK_SET));
+                load_segment(fd, phdr.p_memsz, phdr.p_vaddr);
+
+                if (max_elf_addr < (phdr.p_vaddr + phdr.p_filesz))
+                    max_elf_addr = (phdr.p_vaddr + phdr.p_filesz);
                 break;
+            }
             case PT_NOTE:
             case PT_TLS:
             case PT_GNU_STACK:
@@ -305,9 +380,8 @@ uint64_t System::load_elf(const char* filename) {
         // page-align max_elf_addr
         max_elf_addr = ((max_elf_addr + 4095) / 4096) * 4096;
     }
-
     // finalize
-    close(fileDescriptor);
+    close(fd);
     return elf_header.e_entry /* entry point */;
 }
 
@@ -315,19 +389,18 @@ extern "C" {
 
 #define ECALL_DEBUG 0
 #define ECALL_MEMGUARD (10*1024)
-#define ECALL_MEMARGS 4
+
+    map<long long, char> pending_writes;
 
     void do_pending_write(long long addr, long long val, int size) {
         for(int ofs = 0; ofs < size; ++ofs) {
-            pending_writes[addr+ofs].first = (char)val;
+            pending_writes[addr+ofs] = (char)val;
             val >>= 8;
         }
     }
 
     void do_ecall(long long a7, long long a0, long long a1, long long a2, long long a3, long long a4, long long a5, long long a6, long long* a0ret) {
-        char* memarg_ptrs[ECALL_MEMARGS];
-        char memarg_content[ECALL_MEMARGS][ECALL_MEMGUARD];
-        int memargs = 0;
+        vector<pair<long long, char[ECALL_MEMGUARD]> > memargs;
 
         switch(a7) {
 
@@ -342,14 +415,18 @@ extern "C" {
 
         case __NR_mmap:
             assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
-            return do_ecall(__NR_brk, a1, 0, 0, 0, 0, 0, 0, a0ret);
+            return do_ecall(__NR_brk,a1,0,0,0,0,0,0,a0ret);
 
 #define ECALL_OFFSET(v)                                              \
     do {                                                             \
-        v += ecall_ram;                                              \
-        memarg_ptrs[memargs] = (char*)v;                             \
-        memcpy(memarg_content[memargs++], (void*)v, ECALL_MEMGUARD); \
-        assert(v < ecall_ram+ecall_ramsize);                         \
+        memargs.resize(memargs.size()+1);                            \
+        memargs.back().first = v;                                    \
+        for(int i = 0; i < ECALL_MEMGUARD; ++i) {                    \
+            long long srcptr = sys->virt_to_phy((v & ~63) + i);      \
+            if (srcptr >= sys->ramsize) continue;                    \
+            memargs.back().second[i] = sys->ram[srcptr];             \
+        }                                                            \
+        v += (long long)sys->ram;                                    \
     } while(0)
 
         case __NR_open:
@@ -622,22 +699,20 @@ extern "C" {
             break;
         }
         if (ECALL_DEBUG) cerr << "Calling syscall " << a7 << endl;
-        for(auto& m : pending_writes) {
-            char* ram = (char*)ecall_ram;
-            m.second.second = ram[m.first];
-            ram[m.first] = m.second.first;
-        }
+        for(auto& m : memargs)
+            for(int ofs = 0; ofs < ECALL_MEMGUARD && (m.first & ~63)+ofs < sys->ramsize; ++ofs) {
+                auto pw = pending_writes.find((m.first & ~63)+ofs);
+                if (pw == pending_writes.end()) continue;
+                sys->ram[m.first] = pw->second;
+                pending_writes.erase(pw);
+            }
         *a0ret = syscall(a7, a0, a1, a2, a3, a4, a5, a6);
-        for(auto& m : pending_writes) {
-            char* ram = (char*)ecall_ram;
-            ram[m.first] = m.second.second;
-        }
         set<long long> invalidations;
-        for( ; memargs; --memargs)
-            for(int ofs = 0; ofs < ECALL_MEMGUARD && (long long)(memarg_ptrs[memargs])+ofs < ecall_ram+ecall_ramsize; ++ofs)
-                if (memarg_content[memargs][ofs] != memarg_ptrs[memargs][ofs]) {
-                    if (ECALL_DEBUG) cerr << "Invalidating " << ofs << " on argument " << memargs << endl;
-                    invalidations.insert(((long long)(memarg_ptrs[memargs])+ofs-ecall_ram) & ~0x3f);
+        for(auto& m : memargs)
+            for(int ofs = 0; ofs < ECALL_MEMGUARD && (m.first & ~63)+ofs < sys->ramsize; ++ofs)
+                if (m.second[ofs] != sys->ram[(m.first & ~63) + ofs]) {
+                    if (ECALL_DEBUG) cerr << "Invalidating " << ofs << " on argument " << m.first << endl;
+                    invalidations.insert(m.first & ~0x3f);
                 }
         for(auto& i : invalidations)
             tx_queue.push_front(make_pair(i, INVAL << 13));
