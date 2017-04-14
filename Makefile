@@ -11,17 +11,17 @@ CFILES=$(wildcard *.cpp)
 all: obj_dir/Vtop
 
 obj_dir/Vtop: obj_dir/Vtop.mk
-	$(MAKE) -j5 -C obj_dir/ -f Vtop.mk CXX="ccache g++ -std=c++11"
+	$(MAKE) -j5 -C obj_dir/ -f Vtop.mk CXX="ccache g++"
 
 obj_dir/Vtop.mk: $(VFILES) $(CFILES) 
 	verilator -Wall -Wno-LITENDIAN -Wno-lint -O3 $(TRACE) --no-skip-identical --cc top.sv \
 	--exe $(CFILES) /shared/cse502/DRAMSim2/libdramsim.so \
-	-CFLAGS -I/shared/cse502 \
+	-CFLAGS -I/shared/cse502 -CFLAGS -std=c++11 -CFLAGS -g3 \
 	-LDFLAGS -Wl,-rpath=/shared/cse502/DRAMSim2 \
-	-LDFLAGS -lncurses -LDFLAGS -lelf
+	-LDFLAGS -lncurses -LDFLAGS -lelf -LDFLAGS -lrt
 
 run: obj_dir/Vtop
-	cd obj_dir/ && env HAVETLB=$(HAVETLB) ./Vtop $(RUNELF)
+	cd obj_dir/ && env HAVETLB=$(HAVETLB) ./Vtop $(RUNELF) 1 2 345
 
 clean:
 	rm -rf obj_dir/ dramsim2/results trace.vcd core 

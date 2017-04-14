@@ -33,7 +33,6 @@ double sc_time_stamp();
 class System {
     Vtop* top;
 
-    uint64_t satp;
     uint64_t max_elf_addr;
 
     enum { IRQ_TIMER=0, IRQ_KBD=1 };
@@ -54,7 +53,7 @@ class System {
     bitset<GIGA/PAGE_SIZE> phys_page_used;
     bool use_virtual_memory;
     uint64_t get_phys_page();
-    uint64_t get_pte(uint64_t base_addr, int vpn, bool isleaf);
+    uint64_t get_pte(uint64_t base_addr, int vpn, bool isleaf, bool& allocated);
     uint64_t load_elf_parts(int fileDescriptor, size_t size, const uint64_t virt_addr);
     void load_segment(const int fd, const size_t header_size, uint64_t virt_addr);
 
@@ -65,6 +64,8 @@ public:
 
     char* ram;
     unsigned int ramsize;
+    char* ram_virt;
+    int ram_fd;
 
     System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, char* argv[], int ps_per_clock);
     ~System();

@@ -45,7 +45,7 @@ double sc_time_stamp() {
 }
 
 System* sys;
-static long long ecall_brk = NULL;
+static long long ecall_brk = 0;
 
 list<pair<uint64_t, int> > tx_queue;
 
@@ -57,18 +57,31 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
     char* HAVETLB = getenv("HAVETLB");
     use_virtual_memory = HAVETLB && (toupper(*HAVETLB) == 'Y');
 
-    top->satp = satp = get_phys_page();
-    ram = (char*)mmap(NULL, ramsize, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, 0, 0);
-    assert(ram);
-    top->stackptr = virt_to_phy(ramsize - 4*MEGA)+PAGE_SIZE;
+    string ram_fn = string("/vtop-system-")+to_string(getpid());
+    ram_fd = shm_open(ram_fn.c_str(), O_RDWR|O_CREAT|O_EXCL, 0600);
+    assert(ram_fd != -1);
+    assert(shm_unlink(ram_fn.c_str()) == 0);
+    assert(ftruncate(ram_fd, ramsize) == 0);
+    ram = (char*)mmap(NULL, ramsize, PROT_READ|PROT_WRITE, MAP_SHARED, ram_fd, 0);
+    assert(ram != MAP_FAILED);
+    if (!use_virtual_memory) ram_virt = ram;
+    else ram_virt = (char*)mmap(NULL, ramsize, PROT_NONE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+    assert(ram_virt != MAP_FAILED);
+    top->satp = get_phys_page();
+    top->stackptr = ramsize - 4*MEGA;
+    virt_to_phy(top->stackptr - PAGE_SIZE); // allocate stack page
 
     uint64_t* argvp = (uint64_t*)(ram+virt_to_phy(top->stackptr));
-    assert((char*)argvp < ram+ramsize);
     argvp[0] = argc;
-    char* argvtgt = (char*)&argvp[argc+1];
-    for(int arg = 1; arg <= argc; ++arg) {
-        argvp[arg] = argvtgt - ram;
-        argvtgt = 1+stpcpy(argvtgt, argv[arg-1]);
+    uint64_t dst = top->stackptr + 8/*argc*/ + 8*argc;
+    for(int arg = 0; arg < argc; ++arg) {
+        argvp[arg+1] = dst;
+        char* src = argv[arg];
+        do {
+            virt_to_phy(dst); // make sure phys page is allocated
+            ram_virt[dst] = *src;
+            dst++;
+        } while(*(src++));
     }
 
     // load the program image
@@ -85,7 +98,8 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
 }
 
 System::~System() {
-    munmap(ram, ramsize);
+    assert(munmap(ram, ramsize) == 0);
+    assert(close(ram_fd) == 0);
 
     if (show_console) {
         sleep(2);
@@ -162,7 +176,7 @@ void System::tick(int clk) {
                             int val = (cse502_be64toh(top->bus_req) >> (8*shift)) & 0xffff;
                             //cerr << "val=" << std::hex << val << endl;
                             attron(val & ~0xff);
-                            mvaddch(screenpos / 160, screenpos % 160 + shift/2, val & 0xff );
+                            mvaddch(screenpos / 160, screenpos % 160 + shift/2, val & 0xff);
                         }
                         refresh();
                     }
@@ -234,7 +248,7 @@ uint64_t System::get_phys_page() {
 
 #define VM_DEBUG 0
 
-uint64_t System::get_pte(uint64_t base_addr, int vpn, bool isleaf) {
+uint64_t System::get_pte(uint64_t base_addr, int vpn, bool isleaf, bool& allocated) {
     uint64_t addr = base_addr + vpn*8;
     uint64_t pte = *(uint64_t*) & ram[addr];
     uint64_t page_no = pte >> 10;
@@ -249,6 +263,9 @@ uint64_t System::get_pte(uint64_t base_addr, int vpn, bool isleaf) {
             cout << "Addr:" << std::dec << addr << endl;
             cout << "Initialized page no " << std::dec << page_no << endl;
         }
+        allocated = isleaf;
+    } else {
+        allocated = false;
     }
     assert(page_no < ramsize/PAGE_SIZE);
     return pte;
@@ -259,13 +276,18 @@ uint64_t System::virt_to_phy(const uint64_t virt_addr) {
     if (!use_virtual_memory) return virt_addr;
 
     uint64_t phy_offset, tmp_virt_addr;
-    uint64_t pt_base_addr = satp;
-    phy_offset = virt_addr & 0x0fff;
+    uint64_t pt_base_addr = top->satp;
+    bool allocated;
+    phy_offset = virt_addr & (PAGE_SIZE-1);
     tmp_virt_addr = virt_addr >> 12;
     for(int i = 0; i < 4; i++) {
         int vpn = tmp_virt_addr & (0x01ff << 9*(3-i));
-        uint64_t pte = get_pte(pt_base_addr, vpn, i == 3);
+        uint64_t pte = get_pte(pt_base_addr, vpn, i == 3, allocated);
         pt_base_addr = ((pte&0x0000ffffffffffff)>>10)<<12;
+    }
+    if (use_virtual_memory && allocated) {
+        void* new_virt = ram_virt + (virt_addr & ~(PAGE_SIZE-1));
+        assert(mmap(new_virt, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, ram_fd, pt_base_addr) == new_virt);
     }
     return (pt_base_addr | phy_offset);
 }
@@ -426,7 +448,7 @@ extern "C" {
             if (srcptr >= sys->ramsize) continue;                    \
             memargs.back().second[i] = sys->ram[srcptr];             \
         }                                                            \
-        v += (long long)sys->ram;                                    \
+        v += (long long)sys->ram_virt;                               \
     } while(0)
 
         case __NR_open:
