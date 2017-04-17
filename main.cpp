@@ -11,6 +11,11 @@
 #define INIT_STACK_OFFSET         (4*MEGA)
 #define INIT_STACK_POINTER        (RAM_SIZE - INIT_STACK_OFFSET)
 
+/** Current simulation time */
+double sc_time_stamp() {
+    return System::sys->ticks;
+}
+
 int main(int argc, char* argv[]) {
 	Verilated::commandArgs(argc, argv);
 
@@ -18,7 +23,7 @@ int main(int argc, char* argv[]) {
 	if (argc > 0) ramelf = argv[1];
 
 	Vtop top;
-	System sys(&top, RAM_SIZE, ramelf, argc-1, argv+1, ps_per_clock);
+	System sys(&top, RAM_SIZE, ramelf, argc-1, argv+1, 500);
 
 	// (argc, argv) sanity check
 	cerr << "===== Printing arguments of the program..." << endl;
@@ -54,15 +59,15 @@ int main(int argc, char* argv[]) {
 	tfp->open ("../trace.vcd");
 #endif
 
-#define TICK() do {                        \
+#define TICK() do {                    \
 		top.clk = !top.clk;                \
 		top.eval();                        \
-		if (tfp) tfp->dump(main_time);     \
-		main_time += ps_per_clock/4;       \
+		if (tfp) tfp->dump(sys.ticks);     \
+		sys.ticks += sys.ps_per_clock/4;   \
 		sys.tick(top.clk);                 \
 		top.eval();                        \
-		if (tfp) tfp->dump(main_time);     \
-		main_time += ps_per_clock/4;       \
+		if (tfp) tfp->dump(sys.ticks);     \
+		sys.ticks += sys.ps_per_clock/4;   \
 	} while(0)
 
 	top.reset = 1;
@@ -75,7 +80,7 @@ int main(int argc, char* argv[]) {
 	const char* SHOWCONSOLE = getenv("SHOWCONSOLE");
 	if (SHOWCONSOLE?(atoi(SHOWCONSOLE)!=0):0) sys.console();
 
-	while (main_time/ps_per_clock < 2000*KILO && !Verilated::gotFinish()) {
+	while (sys.ticks/sys.ps_per_clock < 2000*KILO && !Verilated::gotFinish()) {
 		TICK();
 	}
 

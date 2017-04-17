@@ -26,10 +26,6 @@ typedef __int32_t int32_t;
 typedef unsigned short __uint16_t;
 typedef __uint16_t uint16_t;
 
-extern uint64_t main_time;
-extern const int ps_per_clock;
-double sc_time_stamp();
-
 class System {
     Vtop* top;
 
@@ -43,6 +39,7 @@ class System {
 
     uint64_t load_elf(const char* filename);
 
+    list<pair<uint64_t, int> > tx_queue;
     int cmd, rx_count;
     uint64_t xfer_addr;
     std::map<uint64_t, std::pair<uint64_t, int> > addr_to_tag;
@@ -60,6 +57,13 @@ class System {
     DRAMSim::MultiChannelMemorySystem* dramsim;
     
 public:
+    static System* sys;
+    long long ecall_brk;
+
+    uint64_t ticks;
+    int ps_per_clock;
+
+    void invalidate(const uint64_t phys_addr);
     uint64_t virt_to_phy(const uint64_t virt_addr);
 
     char* ram;
