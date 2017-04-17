@@ -107,7 +107,7 @@ module top
 
  
     //insert cache variables
-    logic cache = 1;  //set to 0 to remove the cache, and comment out cache initialization block
+    logic cache = 0;  //set to 0 to remove the cache, and comment out cache initialization block
     logic cache_bus_reqcyc;
     logic cache_bus_respack;
     logic [BUS_DATA_WIDTH-1:0] cache_bus_req;
@@ -116,8 +116,9 @@ module top
     logic cache_bus_reqack;
     logic [BUS_DATA_WIDTH-1:0] cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] cache_bus_resptag;
-
-    direct_cache cache_mod (
+ 
+    /*direct_cache cache_mod (
+    //set_cache cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
         .p_bus_reqcyc(cache_bus_reqcyc), .p_bus_req(cache_bus_req), 
@@ -131,7 +132,7 @@ module top
         .m_bus_reqcyc(bus_reqcyc), .m_bus_req(bus_req),
         .m_bus_reqtag(bus_reqtag), .m_bus_respack(bus_respack)
     );
-
+    */
     always_comb begin
         if(cache == 1) begin
             cache_bus_reqcyc = 0;
