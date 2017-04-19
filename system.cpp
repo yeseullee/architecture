@@ -184,7 +184,9 @@ void System::tick(int clk) {
         case MEMORY:
             xfer_addr = top->bus_req & ~0x3fULL;
             //assert(!(xfer_addr & 7));
-            if (addr_to_tag.find(xfer_addr)!=addr_to_tag.end()) {
+            if (xfer_addr + 64 > ramsize) {
+                cerr << "Invalid 64-byte access, address " << std::hex << xfer_addr << " is beyond end of memory at " << ramsize << endl;
+            } else if (addr_to_tag.find(xfer_addr)!=addr_to_tag.end()) {
                 cerr << "Access for " << std::hex << xfer_addr << " already outstanding. Ignoring..." << endl;
             } else {
                 assert(
