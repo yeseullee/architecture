@@ -38,6 +38,35 @@ extern "C" {
             assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
             return do_ecall(__NR_brk,a1,0,0,0,0,0,0,a0ret);
 
+        case __NR_mq_notify/*__NR_arch_specific_syscall*/:
+            switch(a0) {
+                case 1/*RISCV_ATOMIC_CMPXCHG*/:
+                    {
+                    uint32_t* inmem32 = (uint32_t*)&System::sys->ram[a1];
+                    if (*inmem32 == a2) {
+                        *inmem32 = a3;
+                        *a0ret = a2;
+                    } else {
+                        *a0ret = a3;
+                    }
+                    }
+                    return;
+                case 2/*RISCV_ATOMIC_CMPXCHG64*/:
+                    {
+                    uint64_t* inmem64 = (uint64_t*)&System::sys->ram[a1];
+                    if (*inmem64 == a2) {
+                        *inmem64 = a3;
+                        *a0ret = a2;
+                    } else {
+                        *a0ret = a3;
+                    }
+                    }
+                    return;
+                default:
+                    cerr << "Unsupported arch-specific syscall " << a0 << endl;
+                    assert(0);
+            }
+
 #define ECALL_OFFSET(v)                                                 \
     do {                                                                \
         memargs.resize(memargs.size()+1);                               \
@@ -132,7 +161,7 @@ extern "C" {
         case __NR_clock_getres:
         case __NR_epoll_wait:
         case __NR_set_mempolicy:
-        case __NR_mq_notify:
+        //case __NR_mq_notify
         case __NR_inotify_add_watch:
         case __NR_openat:
         case __NR_mkdirat:
