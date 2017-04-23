@@ -53,7 +53,7 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
     if (!use_virtual_memory) ram_virt = ram;
     else ram_virt = (char*)mmap(NULL, ramsize, PROT_NONE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
     assert(ram_virt != MAP_FAILED);
-    top->satp = get_phys_page();
+    top->satp = get_phys_page() << 12;
     top->stackptr = ramsize - 4*MEGA;
     virt_to_phy(top->stackptr - PAGE_SIZE); // allocate stack page
 
