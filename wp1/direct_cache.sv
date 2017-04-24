@@ -18,7 +18,7 @@ module direct_cache
 		RESPOND = 9,
 		RESPACK = 10,
 		DRAMWREQ = 11,
-		DRAMWRT = 12
+		DRAMWRT = 12,
 
 		//Cache constants
 		CACHE_TAG = 55,		//tag = bits in address (64) - bits in offset (4) - bits in index (5)
@@ -235,17 +235,17 @@ module direct_cache
 					//insert the new block into the cache
 					m_bus_respack = 1;
 					if(write == 1) begin
-						_dirty_bits[index] == 1;
+						_dirty_bits[index] = 1;
 						if(valid[index] == 1 && dirty_bits[index] == 1) begin
 							next_state = DRAMWREQ;
 							_content = cache_data[index];
 						end
-						else
+						else begin
 							next_state = ACCEPT;
 						end
 					end
 					else begin
-						_dirty_bits[index] == 0;
+						_dirty_bits[index] = 0;
 						next_state = RESPOND;
 					end
 
@@ -276,6 +276,7 @@ module direct_cache
 							next_state = DRAMWRT;
 						end
 					end
+				end
 		endcase
 	end
 
