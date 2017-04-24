@@ -243,6 +243,7 @@ module top
                       end               
                       else begin
                           next_state = WAIT;
+                      end
                   end
                   else begin
                         
