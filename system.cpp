@@ -268,11 +268,10 @@ uint64_t System::virt_to_phy(const uint64_t virt_addr) {
 
     if (!use_virtual_memory) return virt_addr;
 
-    uint64_t phy_offset, tmp_virt_addr;
-    uint64_t pt_base_addr = top->satp;
     bool allocated;
-    phy_offset = virt_addr & (PAGE_SIZE-1);
-    tmp_virt_addr = virt_addr >> 12;
+    uint64_t pt_base_addr = top->satp;
+    uint64_t phy_offset = virt_addr & (PAGE_SIZE-1);
+    uint64_t tmp_virt_addr = virt_addr >> 12;
     for(int i = 0; i < 4; i++) {
         int vpn = tmp_virt_addr & (0x01ff << 9*(3-i));
         uint64_t pte = get_pte(pt_base_addr, vpn, i == 3, allocated);
