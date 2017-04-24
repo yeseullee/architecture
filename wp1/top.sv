@@ -114,8 +114,9 @@ module top
     logic cache_bus_reqack;
     logic [BUS_DATA_WIDTH-1:0] cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] cache_bus_resptag;
-
+ 
     direct_cache cache_mod (
+    //set_cache cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
         .p_bus_reqcyc(cache_bus_reqcyc), .p_bus_req(cache_bus_req), 
@@ -162,6 +163,7 @@ module top
         .bus_req(), .bus_reqcyc(), .bus_reqtag, .bus_respack()
     );
 */
+    
     always_comb begin
         if(cache == 1) begin
             cache_bus_reqcyc = 0;
@@ -231,16 +233,16 @@ module top
             FETCH: begin
 
                   if(cache == 1) begin
+                        
                       cache_bus_reqcyc = 1;
                       cache_bus_req = pc;
                       cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+
                       if(!cache_bus_reqack) begin
-                          _pc = pc + 64; 
                           next_state = FETCH;
                       end               
                       else begin
                           next_state = WAIT;
-                      end
                   end
                   else begin
                         
@@ -257,9 +259,32 @@ module top
                   end
                 end
 
-            WAIT:  begin
-                    //TODO: Shanshan, you need to change here bc I changed below.
+            WAIT:begin
                     // Getting all 16 instrs (before, we got 2 * 8 times)
+                   if(cache == 1) begin
+
+                      if(cache_bus_respcyc == 1) begin
+                        _instrlist[fetch_count] = cache_bus_resp[31:0];
+                        _instrlist[fetch_count + 1] = cache_bus_resp[63:32];
+
+                        // For next time,
+                        _fetch_count = fetch_count + 2;
+                        cache_bus_respack = 1;
+                        if(_fetch_count < 16) begin
+                          next_state = WAIT;
+                        end else begin
+                          // For the first instr after fetch.
+                          next_state = GETINSTR;
+                          _instr_index = 0;
+                          _fetch_count = 0;
+                        end
+                      end else begin
+                        next_state = WAIT;
+                      end
+
+                  end else begin
+
+                      //NOT USING CACHE
                       if(bus_respcyc == 1) begin
                         _instrlist[fetch_count] = bus_resp[31:0];
                         _instrlist[fetch_count + 1] = bus_resp[63:32];
@@ -278,7 +303,9 @@ module top
                       end else begin
                         next_state = WAIT;
                       end
-                  end
+                   end
+
+                 end
             GETINSTR: begin
 
                     //NEED MORE INSTR (OUT OF INDEX)                    
@@ -298,15 +325,6 @@ module top
                     end
                   end              
             DECODE: begin
-                    /*
-                    //if both instr are 0s then finish.
-                    if(instr[31:0] == 32'h0 && instr[63:32] == 32'h0) begin
-                      next_state = IDLE;
-                    end else begin
-                    
-                      next_state = READ;
-                    end
-                    */
                     next_state = READ;
                   end
             READ: begin
