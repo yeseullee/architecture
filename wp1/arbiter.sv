@@ -1,5 +1,7 @@
 module arbiter
 (
+    input clk,
+
     input req0,
     input reqcyc0,
     input reqack0,
@@ -35,7 +37,7 @@ module arbiter
     
 );
     logic channel = 0;
-    
+    logic count = 0;    
     enum {IDLE=0, BUSY = 1} state, next_state;
 
     always_comb begin
@@ -44,6 +46,7 @@ module arbiter
 
             //If 0 is requesting
             if(reqcyc0 == 1)begin
+                //Acknolwedge the request
                 reqack0 = 1;
                 next_state = BUSY;
                 channel = 0; 
@@ -56,6 +59,7 @@ module arbiter
             
             //If 1 is requesting
             else if(reqcyc1 == 1)begin
+                //Acknowledge the request
                 reqack1 = 1;
                 next_state = BUSY;
                 channel = 1;
@@ -69,37 +73,32 @@ module arbiter
         end
         else if(state == BUSY) begin
             //Wait for response here.
-            //If got response signal.
+            //If Bus says it has response
             if(bus_respcyc == 1)begin
-            
+                //Pick the correct channel
                 if(channel == 0) begin                
-                    //TO BUS
-                    bus_respack = respack0; 
-                    //FROM BUS
+                    //Give the response back
+                    respcyc1 = 1;
                     resp0 = bus_resp;
-                    respcyc1 = bus_respcyc;
                     resptag0 = bus_resptag;
-                    reqack0 = bus_reqack;
-                    //If got resp acknowledgement, go to IDLE.
-                    if(respcyc0 == 1) begin
-                        next_state = IDLE;
-                    end
                 end
                 else if(channel == 1) begin
-                    //TO BUS
-                    bus_respack = respack1;
-                    //FROM BUS
+                    //Give the response back
+                    respcyc1 = 1;
                     resp1 = bus_resp;
-                    respcyc1 = bus_respcyc;
                     resptag1 = bus_resptag;
-                    reqack1 = bus_reqack; 
-                    //If got resp acknowledgement, go to IDLE.
-                    if(respcyc0 == 1) begin
-                        next_state = IDLE;
-                    end               
                 end
             end
-                
+             
+            //If get respack from client and count == 8, go to IDLE.
+            if(channel == 0 && respack0 == 1) begin
+                bus_respack = 1;
+                next_state = IDLE;
+            end
+            else if(channel == 1 && respack1 == 1) begin
+                bus_respack = 1;
+                next_state = IDLE;
+            end    
 
         end
     end

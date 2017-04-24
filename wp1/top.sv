@@ -27,16 +27,14 @@ module top
 
     logic [63:0] pc;
     logic [63:0] _pc;
-    enum { INIT=3'b000, FETCH=3'b001, WAIT=3'b010, 
-            DECODE=3'b011, READ = 3'b100, EXECUTE=3'b101, 
-            WRITEBACK = 3'b110, IDLE=3'b111} 
+    enum { INIT=4'd0, FETCH=4'd1, WAIT=4'd2, GETINSTR = 4'd3, 
+            DECODE=4'd4, READ = 4'd5, EXECUTE=4'd6, 
+            WRITEBACK = 4'd7, IDLE=4'd8} 
                 state, next_state;
     reg [63:0] instr;
     reg [63:0] _instr;
-    reg [3:0] _count;
-    reg [3:0] count;
-    reg [1:0] instr_num;
-    reg [1:0] _instr_num;
+    reg [4:0] fetch_count;
+    reg [4:0] _fetch_count;
 
     //handle incoming instructions
     //setup inputs & outputs for all modules
@@ -107,7 +105,7 @@ module top
 
  
     //insert cache variables
-    logic cache = 1;  //set to 0 to remove the cache, and comment out cache initialization block
+    logic cache = 0;  //set to 0 to remove the cache, and comment out cache initialization block
     logic cache_bus_reqcyc;
     logic cache_bus_respack;
     logic [BUS_DATA_WIDTH-1:0] cache_bus_req;
@@ -132,6 +130,38 @@ module top
         .m_bus_reqtag(bus_reqtag), .m_bus_respack(bus_respack)
     );
 
+    
+    // FOR FETCHING INSTRUCTIONS
+    //OUTPUT   
+    logic  bus_reqcyc_0; //I need to set to 1 for requesting to read instr
+    logic  bus_respack_0; //I acknowledge the response by setting it to 1.
+    logic  [BUS_DATA_WIDTH-1:0] bus_req_0;//the address I wanna read
+    logic  [BUS_TAG_WIDTH-1:0] bus_reqtag_0; //what you are requesting.
+    //INPUT
+    logic  bus_respcyc_0; //it should become 1 if it is ready to respond.
+    logic  bus_reqack_0;
+    logic  [BUS_DATA_WIDTH-1:0] bus_resp_0; //the instruction read.
+    logic  [BUS_TAG_WIDTH-1:0] bus_resptag_0;
+
+    // FOR STORING INSTRS (total 16 (each 32 bits))
+    logic [31:0] instrlist[15:0];
+    logic [31:0] _instrlist[15:0];
+    logic [5:0] instr_index;
+    logic [5:0] _instr_index;
+/*
+    arbiter arbiter_mod (
+        //INPUTS
+        .clk(clk),
+        .req0(), .reqcyc0(), .reqack0(), .reqtag0(), .respack0(),
+        .req1(), .reqcyc1(), .reqack1(), .reqtag1(), .respack1(),
+        .bus_resp(), .bus_respcyc(), .bus_resptag(), .bus_reqack(),
+        
+        //OUTPUTS
+        .resp0(), .respcyc0(), .resptag0(), .reqack0(),
+        .resp1(), .respcyc1(), .resptag1(), .reqack1(),
+        .bus_req(), .bus_reqcyc(), .bus_reqtag, .bus_respack()
+    );
+*/
     always_comb begin
         if(cache == 1) begin
             cache_bus_reqcyc = 0;
@@ -146,10 +176,15 @@ module top
             bus_reqtag = 0;
         end
 
-        _count = count;
+        //set IF wires (to registers)
         _pc = pc;
         _instr = instr;
-        _instr_num = instr_num;
+        _fetch_count = fetch_count;
+        _instr_index = instr_index;
+
+        for (int i = 0; i < 16; i++) begin
+            _instrlist[i] = instrlist[i];
+        end
 
         //set ID wires (to registers)
         _ID_rd = ID_rd;
@@ -194,8 +229,6 @@ module top
                   end
                 end
             FETCH: begin
-                  _pc = pc;
-                  _count = 0;
 
                   if(cache == 1) begin
                       cache_bus_reqcyc = 1;
@@ -210,10 +243,11 @@ module top
                       end
                   end
                   else begin
-                      _pc = pc + 64; //difference in placement here
+                        
                       bus_reqcyc = 1;
                       bus_req = pc;
                       bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+
                       if(!bus_reqack) begin
                           next_state = FETCH;
                       end               
@@ -224,31 +258,47 @@ module top
                 end
 
             WAIT:  begin
-                    if(cache == 1) begin
-                      if(cache_bus_respcyc == 1) begin
-                        _instr = cache_bus_resp;
-                        _instr_num = 0;
-                        _count = count + 1;
-                        next_state = DECODE;
-                      end
-                      else begin
-                        next_state = WAIT;
-                      end
-                    end
-                    else begin
+                    //TODO: Shanshan, you need to change here bc I changed below.
+                    // Getting all 16 instrs (before, we got 2 * 8 times)
                       if(bus_respcyc == 1) begin
-                        _instr = bus_resp;
-                        _instr_num = 0;
-                        _count = count + 1;
-                        next_state = DECODE;
-                      end
-                      else begin
+                        _instrlist[fetch_count] = bus_resp[31:0];
+                        _instrlist[fetch_count + 1] = bus_resp[63:32];
+
+                        // For next time,
+                        _fetch_count = fetch_count + 2;
+                        bus_respack = 1;
+                        if(_fetch_count < 16) begin
+                          next_state = WAIT;
+                        end else begin
+                          // For the first instr after fetch.
+                          next_state = GETINSTR;
+                          _instr_index = 0;
+                          _fetch_count = 0;
+                        end
+                      end else begin
                         next_state = WAIT;
                       end
-                    end
                   end
+            GETINSTR: begin
 
+                    //NEED MORE INSTR (OUT OF INDEX)                    
+                    if(instr_index >= 16) begin
+                      next_state = FETCH;
+                      _pc = pc + 64;
+                    end else begin 
+
+                      //GOOD FOR NOW
+                      _instr = instrlist[instr_index];
+                       next_state = DECODE;
+
+                     //THE END
+                      if(_instr == 32'b0) begin
+                        next_state = IDLE;
+                      end
+                    end
+                  end              
             DECODE: begin
+                    /*
                     //if both instr are 0s then finish.
                     if(instr[31:0] == 32'h0 && instr[63:32] == 32'h0) begin
                       next_state = IDLE;
@@ -256,6 +306,8 @@ module top
                     
                       next_state = READ;
                     end
+                    */
+                    next_state = READ;
                   end
             READ: begin
 
@@ -295,31 +347,9 @@ module top
                     _WB_reg = EX_write_reg;
                     _WB_sig = EX_write_sig;
                     
-                    
-                    //Directions for all paths.
-                    //1 instruction at a time.
-                    _instr_num = instr_num + 1;
-                    if(_instr_num == 1) begin
-                        _instr = {32'b0,  instr[63:32]};
-                        next_state = DECODE;
-                    end
-                    if(_instr_num == 2) begin
-                        //fetch the next set
-                        _instr_num = 0;
-                        
-                        if(cache == 1) begin
-                          cache_bus_respack = 1;
-                        end
-                        else begin
-                          bus_respack = 1;
-                        end
+                    next_state = GETINSTR;
+                    _instr_index = instr_index + 1;
 
-                        next_state = WAIT;
-
-                        if(_count == 8) begin
-                          next_state = FETCH;
-                        end
-                      end
                     end
             IDLE: $finish;
         endcase
@@ -372,18 +402,26 @@ module top
         if(reset) begin //when first starting.
             pc <= entry;
             state <= INIT;
-            count <= 0;
             instr <= 64'h0;
-            instr_num <= 0;
+            fetch_count <= 0;
+            instr_index <= 0;
+
+            for (int i = 0; i < 16; i++) begin
+                instrlist[i] <= 32'b0;
+            end  
         end
 
         //set IF registers
         state <= next_state;
-        count <= _count;
         pc <= _pc;
         instr <= _instr;
-        instr_num <= _instr_num;
+        fetch_count <= _fetch_count;
+        instr_index <= _instr_index;
         
+        for (int i = 0; i < 16; i++) begin
+            instrlist[i] <= _instrlist[i];
+        end
+
         //set ID registers
         ID_rd <= _ID_rd;
         ID_rs1 <= _ID_rs1;
