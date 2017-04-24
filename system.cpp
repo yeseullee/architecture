@@ -18,9 +18,9 @@
 using namespace std;
 
 enum {
-    INVAL  = 0b100,
     READ   = 0b1,
     WRITE  = 0b0,
+    INVAL  = 0b1000,
     MEMORY = 0b0001,
     MMIO   = 0b0011,
     PORT   = 0b0100,
@@ -227,7 +227,7 @@ void System::dram_write_complete(unsigned id, uint64_t address, uint64_t clock_c
 }
 
 void System::invalidate(const uint64_t phy_addr) {
-    System::sys->tx_queue.push_front(make_pair(phy_addr, INVAL << 13));
+    System::sys->tx_queue.push_front(make_pair(phy_addr, INVAL << 8));
 }
 
 uint64_t System::get_phys_page() {
@@ -278,10 +278,11 @@ uint64_t System::virt_to_phy(const uint64_t virt_addr) {
         uint64_t pte = get_pte(pt_base_addr, vpn, i == 3, allocated);
         pt_base_addr = ((pte&0x0000ffffffffffff)>>10)<<12;
     }
-    if (use_virtual_memory && allocated) {
+    if (allocated) {
         void* new_virt = ram_virt + (virt_addr & ~(PAGE_SIZE-1));
         assert(mmap(new_virt, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, ram_fd, pt_base_addr) == new_virt);
     }
+    assert((pt_base_addr | phy_offset) < ramsize);
     return (pt_base_addr | phy_offset);
 }
 

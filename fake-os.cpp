@@ -73,7 +73,6 @@ extern "C" {
         memargs.back().first = v;                                       \
         for(int i = 0; i < ECALL_MEMGUARD; ++i) {                       \
             long long srcptr = System::sys->virt_to_phy((v & ~63) + i); \
-            if (srcptr >= System::sys->ramsize) continue;               \
             memargs.back().second[i] = System::sys->ram[srcptr];        \
         }                                                               \
         v += (long long)System::sys->ram_virt;                          \
@@ -350,7 +349,7 @@ extern "C" {
         }
         if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7 << endl;
         for(auto& m : memargs)
-            for(int i = 0; i < ECALL_MEMGUARD && (m.first & ~63)+i < System::sys->ramsize; ++i) {
+            for(int i = 0; i < ECALL_MEMGUARD; ++i) {
                 auto pw = pending_writes.find((m.first & ~63)+i);
                 if (pw == pending_writes.end()) continue;
                 System::sys->ram[m.first] = pw->second;
@@ -359,7 +358,7 @@ extern "C" {
         *a0ret = syscall(a7, a0, a1, a2, a3, a4, a5, a6);
         set<long long> invalidations;
         for(auto& m : memargs)
-            for(int i = 0; i < ECALL_MEMGUARD && (m.first & ~63)+i < System::sys->ramsize; ++i) {
+            for(int i = 0; i < ECALL_MEMGUARD; ++i) {
                 long long srcptr = System::sys->virt_to_phy((m.first & ~63) + i);
                 if (m.second[i] != System::sys->ram[srcptr]) {
                     if (ECALL_DEBUG) cerr << "Invalidating " << std::dec << i << " on argument " << std::hex << m.first << endl;
