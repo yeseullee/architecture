@@ -125,7 +125,7 @@ module direct_cache
 		case(state)
 			ACKPROC: begin
 					p_bus_reqack = 1;
-					if(req_tag[11] == 0) begin
+					if(req_tag[12] == 0) begin
 						_content = 0;
 						next_state = READVAL;
 					end
@@ -172,7 +172,7 @@ module direct_cache
 						if(cache_tags[index] == tag) begin
 
 							//cache hit on write (invalidate data)
-							if(req_tag[11] == 0) begin
+							if(req_tag[12] == 0) begin
 								_valid_bits[index] = 0;
 								next_state = UPDATE;
 							end
@@ -234,9 +234,9 @@ module direct_cache
 			UPDATE: begin
 					//insert the new block into the cache
 					m_bus_respack = 1;
-					if(write == 1) begin
+					if(req_tag[12] == 0) begin
 						_dirty_bits[index] = 1;
-						if(valid[index] == 1 && dirty_bits[index] == 1) begin
+						if(valid_bits[index] == 1 && dirty_bits[index] == 1) begin
 							next_state = DRAMWREQ;
 							_content = cache_data[index];
 						end
