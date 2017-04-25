@@ -31,8 +31,8 @@ module top
             DECODE=4'd4, READ = 4'd5, EXECUTE=4'd6, 
             WRITEBACK = 4'd7, IDLE=4'd8} 
                 state, next_state;
-    reg [63:0] instr;
-    reg [63:0] _instr;
+    reg [31:0] instr;
+    reg [31:0] _instr;
     reg [4:0] fetch_count;
     reg [4:0] _fetch_count;
 
@@ -56,6 +56,8 @@ module top
     logic _ID_write_sig;
     logic [3:0] ID_instr_type;
     logic [3:0] _ID_instr_type;
+    logic [31:0] ID_instr; //This is just for debugging.
+    logic [31:0] _ID_instr;
 
     //READ WIRES & REGISTERS  
     //No pass along WIRES
@@ -79,6 +81,8 @@ module top
     logic [63:0] _RD_rs1_val;
     logic [63:0] RD_rs2_val;
     logic [63:0] _RD_rs2_val;
+    logic [31:0] RD_instr; //For debugging
+    logic [31:0] _RD_instr;
 
 
     //EXECUTE stage WIRES & REGISTERS
@@ -96,6 +100,8 @@ module top
     logic [4:0] _EX_write_reg;
     logic EX_write_sig;
     logic _EX_write_sig; 
+    logic [31:0] EX_instr; //For debugging
+    logic [31:0] _EX_instr;
 
     //WRITEBACK WIRES
     logic [63:0] _WB_val;
@@ -197,6 +203,7 @@ module top
         _ID_shamt = ID_shamt;
         _ID_write_sig = ID_write_sig;
         _ID_instr_type = ID_instr_type;
+        _ID_instr = ID_instr;
 
         //set RD wires (to registers)
         _RD_immediate = RD_immediate;
@@ -207,11 +214,13 @@ module top
         _RD_instr_type = RD_instr_type;
         _RD_rs1_val = RD_rs1_val;
         _RD_rs2_val = RD_rs2_val;
+        _RD_instr = RD_instr;
 
         //set EX wires (to registers)
         _EX_alu_result = EX_alu_result;
         _EX_write_reg = EX_write_reg;
         _EX_write_sig = EX_write_sig;
+        _EX_instr = EX_instr;
 
         case(state)
             INIT: begin
@@ -326,6 +335,7 @@ module top
                     end
                   end              
             DECODE: begin
+                    _ID_instr = instr;
                     next_state = READ;
                   end
             READ: begin
@@ -338,6 +348,7 @@ module top
                       _RD_write_sig = ID_write_sig;
                       _RD_write_reg = ID_rd;
                       _RD_instr_type = ID_instr_type;
+                      _RD_instr = ID_instr;
 
                       next_state = EXECUTE;
                     end
@@ -354,6 +365,7 @@ module top
                       //Passing these as registers to WB.
                       _EX_write_sig = RD_write_sig; 
                       _EX_write_reg = RD_write_reg;
+                      _EX_instr = RD_instr;
 
                     //To get more instructions.
                     next_state = WRITEBACK; 
@@ -379,7 +391,7 @@ module top
     //instantiate decode modules for each instruction
     decoder instr_decode_mod (
                 //INPUTS
-                .clk(clk), .instruction(instr[31:0]),
+                .clk(clk), .instruction(instr),
 
                 //OUTPUTS
                 .rd(_ID_rd), .rs1(_ID_rs1), .rs2(_ID_rs2), 
@@ -450,6 +462,7 @@ module top
         ID_shamt <= _ID_shamt;
         ID_write_sig <= _ID_write_sig;
 	ID_instr_type <= _ID_instr_type;
+        ID_instr <= _ID_instr;
 
         //set READ registers
         RD_immediate <= _RD_immediate;
@@ -460,11 +473,13 @@ module top
         RD_instr_type <= _RD_instr_type;
         RD_rs1_val <= _RD_rs1_val;
         RD_rs2_val <= _RD_rs2_val;
+        RD_instr <= _RD_instr;
 
         //set EX registers
         EX_alu_result <= _EX_alu_result;
         EX_write_reg <= _EX_write_reg;
         EX_write_sig <= _EX_write_sig;
+        EX_instr <= _EX_instr;
        
     end
 
