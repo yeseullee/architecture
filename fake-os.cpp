@@ -38,7 +38,12 @@ extern "C" {
             assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
             return do_ecall(__NR_brk,a1,0,0,0,0,0,0,a0ret);
 
-        case __NR_mq_notify/*__NR_arch_specific_syscall*/:
+        case __NR_exit_group:
+        case __NR_exit:
+            Verilated::gotFinish(true);
+            return;
+
+        case 1244/*__NR_arch_specific_syscall*/:
             switch(a0) {
                 case 1/*RISCV_ATOMIC_CMPXCHG*/:
                     {
@@ -160,7 +165,7 @@ extern "C" {
         case __NR_clock_getres:
         case __NR_epoll_wait:
         case __NR_set_mempolicy:
-        //case __NR_mq_notify
+        case __NR_mq_notify:
         case __NR_inotify_add_watch:
         case __NR_openat:
         case __NR_mkdirat:
