@@ -73,7 +73,7 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
     // load the program image
     if (ramelf) top->entry = load_elf(ramelf);
 
-    ecall_brk = (long long)ram + max_elf_addr;
+    ecall_brk = max_elf_addr;
 
     // create the dram simulator
     dramsim = DRAMSim::getMemorySystemInstance("DDR2_micron_16M_8b_x8_sg3E.ini", "system.ini", "../dramsim2", "dram_result", ramsize / MEGA);
