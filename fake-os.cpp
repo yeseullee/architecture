@@ -101,8 +101,6 @@ extern "C" {
         case __NR_lchown:
         case __NR_sysinfo:
         case __NR_times:
-        case __NR_rt_sigpending:
-        case __NR_rt_sigsuspend:
         case __NR_mknod:
         case __NR__sysctl:
         case __NR_adjtimex:
@@ -175,9 +173,7 @@ extern "C" {
         case __NR_fchmodat:
         case __NR_faccessat:
         case __NR_vmsplice:
-        case __NR_signalfd:
         case __NR_timerfd_gettime:
-        case __NR_signalfd4:
         case __NR_preadv:
         case __NR_pwritev:
         case __NR_clock_adjtime:
@@ -197,7 +193,6 @@ extern "C" {
         case __NR_symlink:
         case __NR_readlink:
         case __NR_gettimeofday:
-        case __NR_sigaltstack:
         case __NR_utime:
         case __NR_statfs:
         case __NR_pivot_root:
@@ -212,8 +207,6 @@ extern "C" {
             ECALL_OFFSET(a1);
             break;
 
-        case __NR_rt_sigaction:
-        case __NR_rt_sigprocmask:
         case __NR_setitimer:
         case __NR_accept:
         case __NR_getsockname:
@@ -235,7 +228,6 @@ extern "C" {
         case __NR_setresuid:
         case __NR_getresuid:
         case __NR_getresgid:
-        case __NR_rt_sigtimedwait:
         case __NR_setxattr:
         case __NR_lsetxattr:
         case __NR_getxattr:
@@ -301,6 +293,20 @@ extern "C" {
             ECALL_OFFSET(a4);
             break;
 
+        case __NR_rt_sigpending: // a0
+        case __NR_rt_sigsuspend: // a0
+        case __NR_signalfd: // a1
+        case __NR_signalfd4: // a1
+        case __NR_sigaltstack: // a0,a1
+        case __NR_rt_sigaction: // a1,a2
+        case __NR_rt_sigprocmask: // a1,a2
+        case __NR_rt_sigtimedwait: // a0,a1,a2
+        case __NR_rt_sigqueueinfo:
+        case __NR_rt_tgsigqueueinfo:
+            if (ECALL_DEBUG) cerr << "NO-OP syscall " << std::dec << a7 << endl;
+            *a0ret = 0;
+            break;
+
         case __NR_clone:
         case __NR_get_robust_list:
         case __NR_execve:
@@ -308,7 +314,6 @@ extern "C" {
         case __NR_shmctl:
         case __NR_wait4:
         case __NR_msgctl:
-        case __NR_rt_sigqueueinfo:
         case __NR_sched_setscheduler:
         case __NR_arch_prctl:
         case __NR_mount:
@@ -336,7 +341,6 @@ extern "C" {
         case __NR_move_pages:
         case __NR_epoll_pwait:
         case __NR_timerfd_settime:
-        case __NR_rt_tgsigqueueinfo:
         case __NR_prlimit64:
         case __NR_name_to_handle_at:
         case __NR_open_by_handle_at:
