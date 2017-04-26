@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
 			while (*arg_ptr++);
 			unsigned len = arg_ptr - arg_ptr1;
 			cerr << dec << "== argv[" << j-1 << "]: ";
-			do_ecall(1/*__NR_write*/, 2, val, len, 0, 0, 0, 0, (long long*)&arg_ptr/*dummy*/);
+			do_ecall(1/*__NR_write*/, 2, val, len-1, 0, 0, 0, 0, (long long*)&arg_ptr/*dummy*/);
 			cerr << endl;
 		}
 	}
