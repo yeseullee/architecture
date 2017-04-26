@@ -275,7 +275,7 @@ uint64_t System::virt_to_phy(const uint64_t virt_addr) {
     uint64_t phy_offset = virt_addr & (PAGE_SIZE-1);
     uint64_t tmp_virt_addr = virt_addr >> 12;
     for(int i = 0; i < 4; i++) {
-        int vpn = tmp_virt_addr & (0x01ff << 9*(3-i));
+        int vpn = (tmp_virt_addr & (0x01ff << 9*(3-i))) >> 9*(3-i);
         uint64_t pte = get_pte(pt_base_addr, vpn, i == 3, allocated);
         pt_base_addr = ((pte&0x0000ffffffffffff)>>10)<<12;
     }
