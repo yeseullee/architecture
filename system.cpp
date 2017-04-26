@@ -69,7 +69,7 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
             dst++;
         } while(*(src++));
     }
-    argvp[argc+2] = NULL; // envp
+    argvp[argc+1] = 0; // envp
 
     // load the program image
     if (ramelf) top->entry = load_elf(ramelf);
