@@ -59,7 +59,9 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
 
     uint64_t* argvp = (uint64_t*)(ram+virt_to_phy(top->stackptr));
     argvp[0] = argc;
-    uint64_t dst = top->stackptr + 8/*argc*/ + 8*argc + 8/*envp*/;
+    uint64_t dst = top->stackptr + 8/*argc*/ + 8*argc + 8/*envp*/ + 8/*env*/;
+    argvp[argc+1] = dst-8; // envp
+    argvp[argc+2] = 0; // env array
     for(int arg = 0; arg < argc; ++arg) {
         argvp[arg+1] = dst;
         char* src = argv[arg];
@@ -69,7 +71,6 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
             dst++;
         } while(*(src++));
     }
-    argvp[argc+1] = 0; // envp
 
     // load the program image
     if (ramelf) top->entry = load_elf(ramelf);
