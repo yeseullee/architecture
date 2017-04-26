@@ -1,6 +1,7 @@
 #include <iostream>
 #include <set>
 #include <sys/mman.h>
+#include <sys/uio.h>
 #include <syscall.h>
 #include "system.h"
 
@@ -40,6 +41,7 @@ extern "C" {
 
         case __NR_exit_group:
         case __NR_exit:
+        case __NR_tgkill:
             Verilated::gotFinish(true);
             return;
 
@@ -71,6 +73,20 @@ extern "C" {
                     cerr << "Unsupported arch-specific syscall " << a0 << endl;
                     assert(0);
             }
+
+        case __NR_rt_sigpending: // a0
+        case __NR_rt_sigsuspend: // a0
+        case __NR_signalfd: // a1
+        case __NR_signalfd4: // a1
+        case __NR_sigaltstack: // a0,a1
+        case __NR_rt_sigaction: // a1,a2
+        case __NR_rt_sigprocmask: // a1,a2
+        case __NR_rt_sigtimedwait: // a0,a1,a2
+        case __NR_rt_sigqueueinfo:
+        case __NR_rt_tgsigqueueinfo:
+            if (ECALL_DEBUG) cerr << "NO-OP syscall " << std::dec << a7 << endl;
+            *a0ret = 0;
+            return;
 
 #define ECALL_OFFSET(v)                                                 \
     do {                                                                \
@@ -128,7 +144,6 @@ extern "C" {
         case __NR_fstat:
         case __NR_pread64:
         case __NR_pwrite64:
-        case __NR_readv:
         case __NR_writev:
         case __NR_shmat:
         case __NR_getitimer:
@@ -174,8 +189,6 @@ extern "C" {
         case __NR_faccessat:
         case __NR_vmsplice:
         case __NR_timerfd_gettime:
-        case __NR_preadv:
-        case __NR_pwritev:
         case __NR_clock_adjtime:
         case __NR_sendmmsg:
         case __NR_finit_module:
@@ -293,20 +306,6 @@ extern "C" {
             ECALL_OFFSET(a4);
             break;
 
-        case __NR_rt_sigpending: // a0
-        case __NR_rt_sigsuspend: // a0
-        case __NR_signalfd: // a1
-        case __NR_signalfd4: // a1
-        case __NR_sigaltstack: // a0,a1
-        case __NR_rt_sigaction: // a1,a2
-        case __NR_rt_sigprocmask: // a1,a2
-        case __NR_rt_sigtimedwait: // a0,a1,a2
-        case __NR_rt_sigqueueinfo:
-        case __NR_rt_tgsigqueueinfo:
-            if (ECALL_DEBUG) cerr << "NO-OP syscall " << std::dec << a7 << endl;
-            *a0ret = 0;
-            break;
-
         case __NR_clone:
         case __NR_get_robust_list:
         case __NR_execve:
@@ -349,6 +348,9 @@ extern "C" {
         case __NR_renameat2:
         case __NR_seccomp:
         case __NR_kexec_file_load:
+        case __NR_readv:
+        case __NR_preadv:
+        case __NR_pwritev:
             cerr << "Unsupported syscall " << std::dec << a7 << endl;
             assert(0);
 
@@ -356,21 +358,33 @@ extern "C" {
             if (ECALL_DEBUG) cerr << "Default syscall " << std::dec << a7 << endl;
             break;
         }
-        if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7 << endl;
         for(auto& m : memargs)
             for(int i = 0; i < ECALL_MEMGUARD; ++i) {
                 auto pw = pending_writes.find((m.first & ~63)+i);
                 if (pw == pending_writes.end()) continue;
-                System::sys->ram[m.first] = pw->second;
+                System::sys->ram[pw->first] = pw->second;
                 pending_writes.erase(pw);
             }
+        if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7;
+
+        iovec* iov = (iovec*)a1;
+        if (a7 == __NR_writev)
+            for(int i = 0; i < a2; ++i)
+                iov[i].iov_base = (char*)iov[i].iov_base + (long long)System::sys->ram_virt;
+
         *a0ret = syscall(a7, a0, a1, a2, a3, a4, a5, a6);
+
+        if (a7 == __NR_writev)
+            for(int i = 0; i < a2; ++i)
+                iov[i].iov_base = (char*)iov[i].iov_base - (long long)System::sys->ram_virt;
+
+        if (ECALL_DEBUG) cerr << " => " << std::dec << *a0ret << endl;
         set<long long> invalidations;
         for(auto& m : memargs)
             for(int i = 0; i < ECALL_MEMGUARD; ++i) {
                 long long srcptr = System::sys->virt_to_phy((m.first & ~63) + i);
                 if (m.second[i] != System::sys->ram[srcptr]) {
-                    if (ECALL_DEBUG) cerr << "Invalidating " << std::dec << i << " on argument " << std::hex << m.first << endl;
+                    if (ECALL_DEBUG) cerr << "Invalidating " << std::dec << i << " on argument " << std::hex << m.first << "/" << System::sys->ram[srcptr] << endl;
                     invalidations.insert(m.first & ~63);
                 }
             }
