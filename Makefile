@@ -2,7 +2,7 @@
 
 RUNELF=/shared/cse502/tests/wp1/prog1.o
 
-TRACE=--trace
+TRACE?=--trace
 HAVETLB=n
 
 VFILES=$(wildcard *.sv)
