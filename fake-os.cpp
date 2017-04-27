@@ -50,26 +50,12 @@ extern "C" {
         case 1244/*__NR_arch_specific_syscall*/:
             switch(a0) {
                 case 1/*RISCV_ATOMIC_CMPXCHG*/:
-                    {
-                    uint32_t* inmem32 = (uint32_t*)&System::sys->ram[a1];
-                    if (*inmem32 == a2) {
-                        *inmem32 = a3;
-                        *a0ret = a2;
-                    } else {
-                        *a0ret = a3;
-                    }
-                    }
+                    if (*(uint32_t*)&System::sys->ram[a1] == a2) *(uint32_t*)&System::sys->ram[a1] = a3;
+                    *a0ret = a2;
                     return;
                 case 2/*RISCV_ATOMIC_CMPXCHG64*/:
-                    {
-                    uint64_t* inmem64 = (uint64_t*)&System::sys->ram[a1];
-                    if (*inmem64 == a2) {
-                        *inmem64 = a3;
-                        *a0ret = a2;
-                    } else {
-                        *a0ret = a3;
-                    }
-                    }
+                    if (*(uint64_t*)&System::sys->ram[a1] == a2) *(uint64_t*)&System::sys->ram[a1] = a3;
+                    *a0ret = a2;
                     return;
                 default:
                     cerr << "Unsupported arch-specific syscall " << a0 << endl;
