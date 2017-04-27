@@ -52,7 +52,7 @@ class System {
     uint64_t get_phys_page();
     uint64_t get_pte(uint64_t base_addr, int vpn, bool isleaf, bool& allocated);
     uint64_t load_elf_parts(int fileDescriptor, size_t size, const uint64_t virt_addr);
-    void load_segment(const int fd, const size_t header_size, uint64_t virt_addr);
+    void load_segment(const int fd, const size_t memsz, const size_t filesz, uint64_t virt_addr);
 
     DRAMSim::MultiChannelMemorySystem* dramsim;
     
