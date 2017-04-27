@@ -219,9 +219,8 @@ void System::dram_read_complete(unsigned id, uint64_t address, uint64_t clock_cy
     map<uint64_t, pair<uint64_t, int> >::iterator tag = addr_to_tag.find(address);
     assert(tag != addr_to_tag.end());
     uint64_t orig_addr = tag->second.first;
-    for(int i = 0; i < 64; i += 8) {
+    for(int i = 0; i < 64; i += 8)
         tx_queue.push_back(make_pair(*((uint64_t*)(&ram[((orig_addr&(~63))+((orig_addr+i)&63))])),tag->second.second));
-    }
     addr_to_tag.erase(tag);
 }
 
@@ -287,9 +286,9 @@ uint64_t System::virt_to_phy(const uint64_t virt_addr) {
     return (pt_base_addr | phy_offset);
 }
 
-void System::load_segment(const int fd, size_t filesz, uint64_t virt_addr) {
+void System::load_segment(const int fd, const size_t memsz, const size_t filesz, uint64_t virt_addr) {
     if (VM_DEBUG) cout << "Read " << std::dec << filesz << " bytes at " << std::hex << virt_addr << endl;
-    for(size_t i = 0; i < filesz; ++i) virt_to_phy(virt_addr + i); // prefault
+    for(size_t i = 0; i < memsz; ++i) virt_to_phy((virt_addr + i) & ~(PAGE_SIZE-1)); // prefault
     assert(filesz == read(fd, &ram_virt[virt_addr], filesz));
 }
 
@@ -330,7 +329,7 @@ uint64_t System::load_elf(const char* filename) {
 
             // copy segment content from file to memory
             assert(-1 != lseek(fd, shdr.sh_offset, SEEK_SET));
-            load_segment(fd, shdr.sh_size, 0);
+            load_segment(fd, shdr.sh_size, shdr.sh_size, 0);
             break; // just load the first one
         }
     } else {
@@ -355,7 +354,7 @@ uint64_t System::load_elf(const char* filename) {
 
                 // copy segment content from file to memory
                 assert(-1 != lseek(fd, phdr.p_offset, SEEK_SET));
-                load_segment(fd, phdr.p_filesz, phdr.p_vaddr);
+                load_segment(fd, phdr.p_memsz, phdr.p_filesz, phdr.p_vaddr);
 
                 if (max_elf_addr < (phdr.p_vaddr + phdr.p_memsz))
                     max_elf_addr = (phdr.p_vaddr + phdr.p_memsz);
@@ -374,7 +373,7 @@ uint64_t System::load_elf(const char* filename) {
         }
 
         // page-align max_elf_addr
-        max_elf_addr = ((max_elf_addr + 4095) / 4096) * 4096;
+        max_elf_addr = ((max_elf_addr + PAGE_SIZE-1) / PAGE_SIZE) * PAGE_SIZE;
     }
     // finalize
     close(fd);
