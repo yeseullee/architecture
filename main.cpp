@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
 	const char* SHOWCONSOLE = getenv("SHOWCONSOLE");
 	if (SHOWCONSOLE?(atoi(SHOWCONSOLE)!=0):0) sys.console();
 
-	while (sys.ticks/sys.ps_per_clock < 2000*KILO && !Verilated::gotFinish()) {
+	while (sys.ticks/sys.ps_per_clock < 2000*GIGA && !Verilated::gotFinish()) {
 		TICK();
 	}
 
