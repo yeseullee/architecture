@@ -45,9 +45,9 @@ int main(int argc, char* argv[]) {
 	}
 	cerr << "==========================================" << endl;
 
-	VerilatedVcdC* tfp = NULL;
 #if VM_TRACE
 	// If verilator was invoked with --trace
+	VerilatedVcdC* tfp = NULL;
 	Verilated::traceEverOn(true);
 	VL_PRINTF("Enabling waves...\n");
 	tfp = new VerilatedVcdC;
@@ -57,16 +57,19 @@ int main(int argc, char* argv[]) {
 	tfp->spTrace()->set_time_resolution("1 ps");
 	// Open the dump file
 	tfp->open ("../trace.vcd");
+#define TFP_DUMP if (tfp) tfp->dump(sys.ticks);
+#else
+#define TFP_DUMP
 #endif
 
 #define TICK() do {                    \
 		top.clk = !top.clk;                \
 		top.eval();                        \
-		if (tfp) tfp->dump(sys.ticks);     \
+		TFP_DUMP                           \
 		sys.ticks += sys.ps_per_clock/4;   \
 		sys.tick(top.clk);                 \
 		top.eval();                        \
-		if (tfp) tfp->dump(sys.ticks);     \
+		TFP_DUMP                           \
 		sys.ticks += sys.ps_per_clock/4;   \
 	} while(0)
 
