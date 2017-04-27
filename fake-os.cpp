@@ -14,7 +14,16 @@ extern "C" {
 
     map<long long, char> pending_writes;
 
+#define MAX_PENDING_WRITES 1000000
+
     void do_pending_write(long long addr, long long val, int size) {
+        if (pending_writes.size() > MAX_PENDING_WRITES) {
+            for(int i = 0; i < MAX_PENDING_WRITES/10; ++i) {
+                auto pw = pending_writes.begin();
+                System::sys->ram[pw->first] = pw->second;
+                pending_writes.erase(pw);
+            }
+        }
         for(int ofs = 0; ofs < size; ++ofs) {
             pending_writes[addr+ofs] = (char)val;
             val >>= 8;
