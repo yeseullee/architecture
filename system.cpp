@@ -287,31 +287,10 @@ uint64_t System::virt_to_phy(const uint64_t virt_addr) {
     return (pt_base_addr | phy_offset);
 }
 
-uint64_t System::load_elf_parts(int fd, size_t part_size, const uint64_t virt_addr) {
-    uint64_t phy_addr = virt_to_phy(virt_addr);
-    if (VM_DEBUG) cout << "Virtual addr: " << std::hex << virt_addr << " Physical addr: " << phy_addr << endl;
-    size_t len = read(fd, (void*)(ram + phy_addr/* addr */), part_size);
-    assert(len == part_size);
-    return (virt_addr + part_size);
-}
-
-void System::load_segment(const int fd, const size_t header_size, uint64_t virt_addr) {
-    int total_full_pages = header_size/PAGE_SIZE;
-    size_t part_size = part_size = (((virt_addr >> 12) + 1) << 12) - virt_addr;
-    size_t last_page_len = header_size % PAGE_SIZE;
-    if (VM_DEBUG) {
-        cout << "Total full pages: " << total_full_pages << endl;
-        cout << "Total size: " << header_size << endl;
-        cout << "Total last page size: " << last_page_len << endl;
-    }
-    for(int i = 0; i < total_full_pages; i++) {
-      virt_addr = load_elf_parts(fd, part_size, virt_addr);
-      part_size = 4096;
-      assert(virt_addr%4096 == 0);
-    }
-    if(last_page_len > 0) {
-      virt_addr = load_elf_parts(fd, last_page_len, virt_addr);
-    }
+void System::load_segment(const int fd, size_t filesz, uint64_t virt_addr) {
+    if (VM_DEBUG) cout << "Read " << std::dec << filesz << " bytes at " << std::hex << virt_addr << endl;
+    for(size_t i = 0; i < filesz; ++i) virt_to_phy(virt_addr + i); // prefault
+    assert(filesz == read(fd, &ram_virt[virt_addr], filesz));
 }
 
 uint64_t System::load_elf(const char* filename) {
@@ -376,10 +355,10 @@ uint64_t System::load_elf(const char* filename) {
 
                 // copy segment content from file to memory
                 assert(-1 != lseek(fd, phdr.p_offset, SEEK_SET));
-                load_segment(fd, phdr.p_memsz, phdr.p_vaddr);
+                load_segment(fd, phdr.p_filesz, phdr.p_vaddr);
 
-                if (max_elf_addr < (phdr.p_vaddr + phdr.p_filesz))
-                    max_elf_addr = (phdr.p_vaddr + phdr.p_filesz);
+                if (max_elf_addr < (phdr.p_vaddr + phdr.p_memsz))
+                    max_elf_addr = (phdr.p_vaddr + phdr.p_memsz);
                 break;
             }
             case PT_NOTE:
