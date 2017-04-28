@@ -27,12 +27,6 @@ enum {
     IRQ    = 0b1110
 };
 
-#ifndef be32toh
-#define be32toh(x)      ((u_int32_t)ntohl((u_int32_t)(x)))
-#endif
-
-static __inline__ u_int64_t cse502_be64toh(u_int64_t __x) { return (((u_int64_t)be32toh(__x & (u_int64_t)0xFFFFFFFFULL)) << 32) | ((u_int64_t)be32toh((__x & (u_int64_t)0xFFFFFFFF00000000ULL) >> 32)); }
-
 System* System::sys;
 
 System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, char* argv[], int ps_per_clock)
@@ -161,7 +155,7 @@ void System::tick(int clk) {
                     if ((xfer_addr - 0xb8000) < 80*25*2) {
                         int screenpos = xfer_addr - 0xb8000;
                         for(int shift = 0; shift < 8; shift += 2) {
-                            int val = (cse502_be64toh(top->bus_req) >> (8*shift)) & 0xffff;
+                            int val = (top->bus_req >> (8*shift)) & 0xffff;
                             //cerr << "val=" << std::hex << val << endl;
                             attron(val & ~0xff);
                             mvaddch(screenpos / 160, screenpos % 160 + shift/2, val & 0xff);
