@@ -225,6 +225,7 @@ void System::dram_read_complete(unsigned id, uint64_t address, uint64_t clock_cy
 }
 
 void System::dram_write_complete(unsigned id, uint64_t address, uint64_t clock_cycle) {
+    do_finish_write(address, 64);
 }
 
 void System::invalidate(const uint64_t phy_addr) {

@@ -9,12 +9,14 @@ using namespace std;
 
 extern "C" {
 
-#define ECALL_DEBUG 0
-#define ECALL_MEMGUARD (10*1024)
+#define MAX_PENDING_WRITES 1000000
 
     map<long long, char> pending_writes;
 
-#define MAX_PENDING_WRITES 1000000
+    void do_finish_write(long long addr, int size) {
+        for(int i = 0; i < size; ++i)
+            pending_writes.erase(addr+i);
+    }
 
     void do_pending_write(long long addr, long long val, int size) {
         if (pending_writes.size() > MAX_PENDING_WRITES) {
@@ -29,6 +31,9 @@ extern "C" {
             val >>= 8;
         }
     }
+
+#define ECALL_DEBUG 0
+#define ECALL_MEMGUARD (10*1024)
 
     void do_ecall(long long a7, long long a0, long long a1, long long a2, long long a3, long long a4, long long a5, long long a6, long long* a0ret) {
         vector<pair<long long, char[ECALL_MEMGUARD]> > memargs;

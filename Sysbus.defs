@@ -10,6 +10,10 @@
 import "DPI-C" function void
 do_pending_write(input longint addr, input longint val, input int size);
 
+// function to be called when write has arrived at memory
+import "DPI-C" function void
+do_finish_write(input longint addr, input int size);
+
 // function to be called to execute a system call
 import "DPI-C" function void
 do_ecall(input longint a7, input longint a0, input longint a1, input longint a2, input longint a3, input longint a4, input longint a5, input longint a6, output longint a0ret);
