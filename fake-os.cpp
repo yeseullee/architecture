@@ -73,7 +73,8 @@ extern "C" {
                     return;
                 default:
                     cerr << "Unsupported arch-specific syscall " << a0 << endl;
-                    assert(0);
+                    Verilated::gotFinish(true);
+                    return;
             }
 
         case __NR_rt_sigpending: // a0
@@ -354,7 +355,8 @@ extern "C" {
         case __NR_preadv:
         case __NR_pwritev:
             cerr << "Unsupported syscall " << std::dec << a7 << endl;
-            assert(0);
+            Verilated::gotFinish(true);
+            return;
 
         default:
             if (ECALL_DEBUG) cerr << "Default syscall " << std::dec << a7 << endl;

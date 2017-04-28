@@ -179,10 +179,9 @@ void System::tick(int clk) {
         switch(cmd) {
         case MEMORY:
             xfer_addr = top->bus_req & ~0x3fULL;
-            //assert(!(xfer_addr & 7));
             if (xfer_addr > (ramsize - 64)) {
                 cerr << "Invalid 64-byte access, address " << std::hex << xfer_addr << " is beyond end of memory at " << ramsize << endl;
-                assert(0);
+                Verilated::gotFinish(true);
             } else if (addr_to_tag.find(xfer_addr)!=addr_to_tag.end()) {
                 cerr << "Access for " << std::hex << xfer_addr << " already outstanding. Ignoring..." << endl;
             } else {
@@ -201,7 +200,8 @@ void System::tick(int clk) {
             break;
 
         default:
-            assert(0);
+            cerr << "Unknown command" << std::hex << cmd << endl;
+            Verilated::gotFinish(true);
         };
     } else {
         top->bus_reqack = 0;
