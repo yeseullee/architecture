@@ -16,13 +16,17 @@ module reg_file
 	  
 	  // outputs
 	  output [63:0] rs1_val,
-	  output [63:0] rs2_val
-	  //output write_ack //uncomment related code if needed
+	  output [63:0] rs2_val,
+	  output [1:0] rs1_validbit,
+	  output [1:0] rs2_validbit
 	);
 
 	//setup registers
 	logic [63:0] registers[31:0];
 	logic [63:0] _registers[31:0];
+        logic [1:0] validbits[31:0];
+        logic [1:0] _validbits[31:0];
+
 	logic debug = 0; //to print out the contents of each register upon ecah new instruction, set to 1
 
 	always_comb begin
@@ -55,11 +59,19 @@ module reg_file
 			for (int i = 0; i < 32; i++) begin
 				registers[i] <= 64'b0;
 			end
+
+			for(int i = 0; i < 32; i++) begin
+				validbits[i] <= 2'b0;
+			end
 		end
 
 		//write values from wires to registers, excepting register 0
 		for (int i = 1; i < 32; i++) begin
 			registers[i] <= _registers[i];
+		end
+
+		for(int i = 0; i < 32; i++) begin
+			validbits[i] <= _validbits[i];
 		end
 	end
 endmodule

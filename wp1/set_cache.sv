@@ -237,7 +237,7 @@ module set_cache //2-way set associative cache
 					update_index = -1;
 
 					//find location
-					for(int i = 0; i < NMU_CACHE_LINES/NUM_CACHE_SETS; i++) begin
+					for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
 						//check for valid bit == 0
 						if(valid_bits[(2*index)+i] == 0) begin
 							update_index = (2*index) + i;
@@ -273,10 +273,10 @@ module set_cache //2-way set associative cache
 					//set the recent bits
 					for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
 						if((2*index) + i == update_index) begin
-							recent_bits[(2*index)+i] = 1;
+							_recent_bits[(2*index)+i] = 1;
 						end
-						else
-							recent_bits[(2*index)+i] = 0;
+						else begin
+							_recent_bits[(2*index)+i] = 0;
 						end
 					end
 				end
@@ -349,6 +349,7 @@ module set_cache //2-way set associative cache
 			ptr <= 0;
 			dirty_bits <= 0;
 			valid_bits <= 0;
+			recent_bits <= 0;
 			for(int i = 0; i < NUM_CACHE_LINES; i++) begin
 				cache_data[i] <= 0;
 				cache_tags[i] <= 0;
@@ -363,6 +364,7 @@ module set_cache //2-way set associative cache
 		ptr <= next_ptr;
 		dirty_bits <= _dirty_bits;
 		valid_bits <= _valid_bits;
+		recent_bits <= _recent_bits;
 		for(int i = 0; i < NUM_CACHE_LINES; i++) begin
 			cache_data[i] <= _cache_data[i];
 			cache_tags[i] <= _cache_tags[i];
