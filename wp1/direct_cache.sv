@@ -125,7 +125,7 @@ module direct_cache
 		case(state)
 			ACKPROC: begin
 					p_bus_reqack = 1;
-					if(req_tag[12] == 0) begin
+					if(req_tag[12] == SYSBUS_WRITE) begin
 						_content = 0;
 						next_state = READVAL;
 					end
@@ -172,7 +172,7 @@ module direct_cache
 						if(cache_tags[index] == tag) begin
 
 							//cache hit on write (invalidate data)
-							if(req_tag[12] == 0) begin
+							if(req_tag[12] == SYSBUS_WRITE) begin
 								_valid_bits[index] = 0;
 								next_state = UPDATE;
 							end

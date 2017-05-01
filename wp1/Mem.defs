@@ -1,0 +1,11 @@
+`define MEM_NO_ACCESS  2'b00
+`define MEM_READ       2'b01
+`define MEM_WRITE      2'b10
+`define MEM_BYTE       3'b000
+`define MEM_HALF       3'b001
+`define MEM_WORD       3'b010
+`define MEM_DOUBLE     3'b011
+`define MEM_US_BYTE    3'b100
+`define MEM_US_HALF    3'b101
+`define MEM_US_WORD    3'b110
+`define MEM_NO_SIZE    3'b111
