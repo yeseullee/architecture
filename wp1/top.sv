@@ -131,8 +131,8 @@ module top
     logic [31:0] MEM_instr; //For debugging
     logic [31:0] _MEM_instr;
     logic [1:0] _MEM_access;
-    logic [2:0] _MEM_mem_size;
-    logic [4:0] _MEM_rs2;
+    logic [2:0] _MEM_size;
+    logic [63:0] _MEM_rs2_val;
 
     //memory stage variables
     logic [1:0] MEM_status;
@@ -212,11 +212,9 @@ module top
     arbiter arbiter_mod (
         //INPUTS
         .clk(clk),
-        .req0(IF_arbiter_bus_req), .reqcyc0(IF_arbiter_bus_reqcyc), 
-        .reqack0(IF_arbiter_bus_reqack), .reqtag0(IF_arbiter_bus_reqtag), 
+        .req0(IF_arbiter_bus_req), .reqcyc0(IF_arbiter_bus_reqcyc), .reqtag0(IF_arbiter_bus_reqtag), 
         .respack0(IF_arbiter_bus_respack),
-        .req1(MEM_arbiter_bus_req), .reqcyc1(MEM_arbiter_bus_reqcyc), 
-        .reqack1(MEM_arbiter_bus_reqack), .reqtag1(MEM_arbiter_bus_reqtag), 
+        .req1(MEM_arbiter_bus_req), .reqcyc1(MEM_arbiter_bus_reqcyc), .reqtag1(MEM_arbiter_bus_reqtag), 
         .respack1(MEM_arbiter_bus_respack),
         .bus_resp(bus_resp), .bus_respcyc(bus_respcyc), .bus_resptag(bus_resptag), .bus_reqack(bus_reqack),
         
@@ -460,8 +458,8 @@ module top
                       next_state = MEM;
 
                       //read from memory if store or load, go immediately to writeback otherwise
-                      if(MEM_access != MEM_NO_ACCESS) begin
-                        case(MEM_status) begin
+                      if(_MEM_access != `MEM_NO_ACCESS) begin
+                        case(MEM_status)
                           0: begin  //make request to memory to read
                               MEM_arbiter_bus_reqcyc = 1;
                               MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
@@ -484,28 +482,28 @@ module top
                               end
                             end
                           2: begin  //manipulate read value accordingly and send request to write if needed
-                              if(MEM_access == MEM_READ) begin //load
+                              if(_MEM_access == `MEM_READ) begin //load
                                 //Tload value from MEM_read_value to _MEM_value
-                                case(_MEM_size): begin
-                                  MEM_BYTE: _MEM_value = {56'b{MEM_read_value[MEM_ptr + 7]}, MEM_read_value[MEM_ptr +: 8]};
-                                  MEM_HALF: _MEM_value = {48'b{MEM_read_value[MEM_ptr + 15]}, MEM_read_value[MEM_ptr +: 16]};
-                                  MEM_WORD: _MEM_value = {32'b{MEM_read_value[MEM_ptr + 31]}, MEM_read_value[MEM_ptr +: 32]};
-                                  MEM_DOUBLE: _MEM_value = {MEM_read_value[MEM_ptr +: 64]};
-                                  MEM_US_BYTE: _MEM_value = {56'b0, MEM_read_value[MEM_ptr +: 8]};
-                                  MEM_US_HALF: _MEM_value = {48'b0, MEM_read_value[MEM_ptr +: 16]};
-                                  MEM_US_WORD: _MEM_value = {32'b0, MEM_read_value[MEM_ptr +: 32]};
+                                case(_MEM_size)
+                                  `MEM_BYTE: _MEM_value = {{56{MEM_read_value[MEM_ptr + 7]}}, MEM_read_value[MEM_ptr +: 8]};
+                                  `MEM_HALF: _MEM_value = {{48{MEM_read_value[MEM_ptr + 15]}}, MEM_read_value[MEM_ptr +: 16]};
+                                  `MEM_WORD: _MEM_value = {{32{MEM_read_value[MEM_ptr + 31]}}, MEM_read_value[MEM_ptr +: 32]};
+                                  `MEM_DOUBLE: _MEM_value = {MEM_read_value[MEM_ptr +: 64]};
+                                  `MEM_US_BYTE: _MEM_value = {56'b0, MEM_read_value[MEM_ptr +: 8]};
+                                  `MEM_US_HALF: _MEM_value = {48'b0, MEM_read_value[MEM_ptr +: 16]};
+                                  `MEM_US_WORD: _MEM_value = {32'b0, MEM_read_value[MEM_ptr +: 32]};
                                 endcase
                                 MEM_next_ptr = 0;
                                 MEM_status = 0;
                                 next_state = WRITEBACK;
                               end
-                              else if(MEM_access == MEM_WRITE) begin //store
-                                //modify _MEM_read_value using _MEM_alu_result?
-                                case(_MEM_size): begin
-                                  MEM_BYTE: _MEM_read_value[MEM_ptr +: 8] = _MEM_rs2_val[7:0];
-                                  MEM_HALF: _MEM_read_value[MEM_ptr +: 16] = _MEM_rs2_val[15:0];
-                                  MEM_WORD: _MEM_read_value[MEM_ptr +: 32] = _MEM_rs2_val[31:0];
-                                  MEM_DOUBLE: _MEM_read_value[MEM_ptr +: 64] = _MEM_rs2_val;
+                              else if(_MEM_access == `MEM_WRITE) begin //store
+                                //modify _MEM_read_value using _MEM_alu_result
+                                case(_MEM_size)
+                                  `MEM_BYTE: _MEM_read_value[MEM_ptr +: 8] = _MEM_rs2_val[7:0];
+                                  `MEM_HALF: _MEM_read_value[MEM_ptr +: 16] = _MEM_rs2_val[15:0];
+                                  `MEM_WORD: _MEM_read_value[MEM_ptr +: 32] = _MEM_rs2_val[31:0];
+                                  `MEM_DOUBLE: _MEM_read_value[MEM_ptr +: 64] = _MEM_rs2_val;
                                 endcase
                                 //request to write to memory
                                 MEM_arbiter_bus_reqcyc = 1;
@@ -528,6 +526,7 @@ module top
                               end
                         end
                       endcase
+                    end
                     else begin
                       _MEM_value = EX_alu_result;
                       next_state = WRITEBACK;

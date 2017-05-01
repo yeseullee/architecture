@@ -1,44 +1,46 @@
 module arbiter
+#(
+    BUS_DATA_WIDTH = 64,
+    BUS_TAG_WIDTH = 13
+)
 (
     input clk,
 
-    input req0,
+    input [BUS_DATA_WIDTH-1:0] req0,
     input reqcyc0,
-    input reqack0,
-    input reqtag0,
+    input [BUS_TAG_WIDTH-1:0] reqtag0,
     input respack0,
     
-    input req1,
+    input [BUS_DATA_WIDTH-1:0] req1,
     input reqcyc1,
-    input reqack1,
-    input reqtag1,
+    input [BUS_TAG_WIDTH-1:0] reqtag1,
     input respack1,
     
-    output resp0,
+    output [BUS_DATA_WIDTH-1:0] resp0,
     output respcyc0,
-    output resptag0,
+    output [BUS_TAG_WIDTH-1:0] resptag0,
     output reqack0,
     
-    output resp1,
+    output [BUS_DATA_WIDTH-1:0] resp1,
     output respcyc1,
-    output resptag1,
+    output [BUS_TAG_WIDTH-1:0] resptag1,
     output reqack1,
     
     //With the bus
-    output bus_req, //the address for request
+    output [BUS_DATA_WIDTH-1:0]  bus_req, //the address for request
     output bus_reqcyc, //request acknowledged
-    output bus_reqtag, //
+    output [BUS_TAG_WIDTH-1:0] bus_reqtag, //
     output bus_respack, //acknolwedgement for response. 
     
-    input bus_resp, //the response
+    input [BUS_DATA_WIDTH-1:0] bus_resp, //the response
     input bus_respcyc, //response acknowledgement
-    input bus_resptag,
+    input [BUS_TAG_WIDTH-1:0] bus_resptag,
     input bus_reqack //acknowledgement for request.
     
 );
     logic channel = 0;
-    logic fetch_count;
-    logic _fetch_count;
+    logic [4:0] fetch_count;
+    logic [4:0] _fetch_count;
     logic addr;
     logic _addr;
     enum {IDLE=4'd0, FETCH = 4'd1, WAIT = 4'd2, SEND = 4'd3, WAIT_RESP = 4'd4} 
