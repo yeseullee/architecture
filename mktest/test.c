@@ -6,10 +6,10 @@ int main(int argc, char* argv[]) {
   return c;
 }
  
-int one(){
+int one() {
   return 1;
 }
  
-int two(){
+int two() {
   return 2;
 }

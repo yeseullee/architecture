@@ -1,7 +1,7 @@
 ARCH=riscv64-unknown-elf-
 CC=$(ARCH)gcc
 OBJDUMP=$(ARCH)objdump
-CFLAGS=-march=rv64im -O0 -Wno-implicit-int
+CFLAGS=-march=rv64im -O0 -Wno-implicit-int -fPIC
 STRIP=$(ARCH)strip
 
 OBJECT_FILES=test
