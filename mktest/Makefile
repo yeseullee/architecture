@@ -1,7 +1,8 @@
 ARCH=riscv64-unknown-elf-
 CC=$(ARCH)gcc
+LD=$(ARCH)ld
 OBJDUMP=$(ARCH)objdump
-CFLAGS=-march=rv64im -O0 -Wno-implicit-int -fPIC
+CFLAGS=-march=rv64im -O0 -Wno-implicit-int
 STRIP=$(ARCH)strip
 
 OBJECT_FILES=test
@@ -14,5 +15,6 @@ clean:
 	rm -f $(OBJECT_FILES) $(patsubst %,%.s,$(OBJECT_FILES))
 
 %: %.c
-	$(CC) $(CFLAGS) -Wl,-Tlinker.script -shared -nostartfiles -o $@ $<
+	$(CC) $(CFLAGS) -c $<
+	$(LD) -o $@ -Tlinker.script $@.o
 	$(OBJDUMP) -S $@ > $@.s
