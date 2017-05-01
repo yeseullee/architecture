@@ -355,6 +355,7 @@ uint64_t System::load_elf(const char* filename) {
                     max_elf_addr = (phdr.p_vaddr + phdr.p_memsz);
                 break;
             }
+            case PT_DYNAMIC:
             case PT_NOTE:
             case PT_TLS:
             case PT_GNU_STACK:
