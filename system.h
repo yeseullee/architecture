@@ -34,6 +34,7 @@ class System {
     enum { IRQ_TIMER=0, IRQ_KBD=1 };
     int interrupts;
     std::queue<char> keys;
+    int* errno_addr;
 
     bool show_console;
 
@@ -63,6 +64,7 @@ public:
     uint64_t ticks;
     int ps_per_clock;
 
+    void set_errno(const int new_errno);
     void invalidate(const uint64_t phys_addr);
     uint64_t virt_to_phy(const uint64_t virt_addr);
 

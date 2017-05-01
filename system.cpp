@@ -30,7 +30,7 @@ enum {
 System* System::sys;
 
 System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, char* argv[], int ps_per_clock)
-    : top(top), ps_per_clock(ps_per_clock), ramsize(ramsize), max_elf_addr(0), show_console(false), interrupts(0), rx_count(0), ticks(0), ecall_brk(0)
+    : top(top), ps_per_clock(ps_per_clock), ramsize(ramsize), max_elf_addr(0), show_console(false), interrupts(0), rx_count(0), ticks(0), ecall_brk(0), errno_addr(NULL)
 {
     sys = this;
 
@@ -222,6 +222,13 @@ void System::dram_write_complete(unsigned id, uint64_t address, uint64_t clock_c
     do_finish_write(address, 64);
 }
 
+void System::set_errno(const int new_errno) {
+    if (errno_addr) {
+        *errno_addr = new_errno;
+        invalidate((char*)errno_addr - ram);
+    }
+}
+
 void System::invalidate(const uint64_t phy_addr) {
     tx_queue.push_front(make_pair(phy_addr, INVAL << 8));
 }
@@ -355,9 +362,12 @@ uint64_t System::load_elf(const char* filename) {
                     max_elf_addr = (phdr.p_vaddr + phdr.p_memsz);
                 break;
             }
+            case PT_TLS:
+                errno_addr = (int*)(ram + phdr.p_vaddr + 0x20 /* errno, grep ".*TLS.* errno$" */);
+                cout << "Setting errno_addr to " << std::hex << errno_addr << " (TLS at " << phdr.p_vaddr << "+0x20)" << endl;
+                break;
             case PT_DYNAMIC:
             case PT_NOTE:
-            case PT_TLS:
             case PT_GNU_STACK:
             case PT_GNU_RELRO:
                 // do nothing
