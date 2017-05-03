@@ -42,14 +42,17 @@ extern "C" {
 
         case __NR_brk:
             if (ECALL_DEBUG) cerr << "Allocate " << std::dec << a0 << " bytes at 0x" << std::hex << System::sys->ecall_brk << std::dec << endl;
+            if ((a0 > System::sys->max_elf_addr) && (a0 < System::sys->ramsize)) System::sys->ecall_brk = a0;
             *a0ret = System::sys->ecall_brk;
-            System::sys->ecall_brk += a0;
             return;
 
         case __NR_mmap:
             assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
-            System::sys->ecall_brk += System::sys->ecall_brk & ~4095; // align to 4K boundary
-            return do_ecall(__NR_brk,a1,0,0,0,0,0,0,a0ret);
+            System::sys->ecall_brk = (System::sys->ecall_brk + PAGE_SIZE-1) & ~(PAGE_SIZE-1); // align to 4K boundary
+            *a0ret = System::sys->ecall_brk;
+            System::sys->ecall_brk += a1;
+            System::sys->ecall_brk = (System::sys->ecall_brk + PAGE_SIZE-1) & ~(PAGE_SIZE-1); // align to 4K boundary
+            return;
 
         case __NR_munmap:
             *a0ret = 0; // don't bother unmapping

@@ -29,8 +29,6 @@ typedef __uint16_t uint16_t;
 class System {
     Vtop* top;
 
-    uint64_t max_elf_addr;
-
     enum { IRQ_TIMER=0, IRQ_KBD=1 };
     int interrupts;
     std::queue<char> keys;
@@ -59,7 +57,8 @@ class System {
     
 public:
     static System* sys;
-    long long ecall_brk;
+    uint64_t max_elf_addr;
+    uint64_t ecall_brk;
 
     uint64_t ticks;
     int ps_per_clock;
