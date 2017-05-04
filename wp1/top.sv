@@ -60,9 +60,6 @@ module top
     logic [31:0] _ID_instr;
 
     //READ WIRES & REGISTERS  
-    //No pass along WIRES
-    logic [4:0] _RD_rs1;
-    logic [4:0] _RD_rs2;
     //Pass along REGISTERS (8)
     logic [31:0] RD_immediate;
     logic [31:0] _RD_immediate;
@@ -86,13 +83,6 @@ module top
 
 
     //EXECUTE stage WIRES & REGISTERS
-    // No need to pass these.. WIRES
-    logic [63:0] _EX_rs1_val;
-    logic [63:0] _EX_rs2_val;
-    logic [10:0] _EX_alu_op;
-    logic [31:0] _EX_immediate;
-    logic [5:0] _EX_shamt;
-    logic [3:0] _EX_instr_type;
     // Pass along REGISTERS (3)
     logic [63:0] EX_alu_result;
     logic [63:0] _EX_alu_result;
@@ -103,12 +93,9 @@ module top
     logic [31:0] EX_instr; //For debugging
     logic [31:0] _EX_instr;
 
-    //WRITEBACK WIRES
-    logic [63:0] _WB_val;
-    logic [4:0] _WB_reg;
-    logic _WB_sig;
-
-
+    //WB pass along
+    logic [31:0] WB_instr;
+    logic [31:0] _WB_instr;
  
     //insert cache variables
     logic cache = 0;  //set to 0 to remove the cache, and comment out cache initialization block
@@ -121,7 +108,7 @@ module top
     logic [BUS_DATA_WIDTH-1:0] cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] cache_bus_resptag;
  
-    direct_cache cache_mod (
+/*    direct_cache cache_mod (
     //set_cache cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
@@ -136,7 +123,7 @@ module top
         .m_bus_reqcyc(bus_reqcyc), .m_bus_req(bus_req),
         .m_bus_reqtag(bus_reqtag), .m_bus_respack(bus_respack)
     );
-
+*/
     
     // FOR FETCHING INSTRUCTIONS
     //OUTPUT   
@@ -193,34 +180,6 @@ module top
         for (int i = 0; i < 16; i++) begin
             _instrlist[i] = instrlist[i];
         end
-
-        //set ID wires (to registers)
-        _ID_rd = ID_rd;
-        _ID_rs1 = ID_rs1;
-        _ID_rs2 = ID_rs2;
-        _ID_immediate = ID_immediate;
-        _ID_alu_op = ID_alu_op;
-        _ID_shamt = ID_shamt;
-        _ID_write_sig = ID_write_sig;
-        _ID_instr_type = ID_instr_type;
-        _ID_instr = ID_instr;
-
-        //set RD wires (to registers)
-        _RD_immediate = RD_immediate;
-        _RD_alu_op = RD_alu_op;
-        _RD_shamt = RD_shamt;
-        _RD_write_sig = RD_write_sig;
-        _RD_write_reg = RD_write_reg;
-        _RD_instr_type = RD_instr_type;
-        _RD_rs1_val = RD_rs1_val;
-        _RD_rs2_val = RD_rs2_val;
-        _RD_instr = RD_instr;
-
-        //set EX wires (to registers)
-        _EX_alu_result = EX_alu_result;
-        _EX_write_reg = EX_write_reg;
-        _EX_write_sig = EX_write_sig;
-        _EX_instr = EX_instr;
 
         case(state)
             INIT: begin
@@ -340,8 +299,6 @@ module top
                   end
             READ: begin
 
-                      _RD_rs1 = ID_rs1;
-                      _RD_rs2 = ID_rs2;
                       _RD_immediate = ID_immediate;
                       _RD_alu_op = ID_alu_op;
                       _RD_shamt = ID_shamt;
@@ -353,15 +310,6 @@ module top
                       next_state = EXECUTE;
                     end
             EXECUTE: begin
-                      //Assuming register file is done, passing parameters for EXECUTE state.
-                      //OUTPUT of REG FILE
-                      _EX_rs1_val = RD_rs1_val;
-                      _EX_rs2_val = RD_rs2_val;
-                      //Connecting OTHER PARAMS...
-                      _EX_immediate = RD_immediate;
-                      _EX_alu_op = RD_alu_op;
-                      _EX_shamt = RD_shamt;
-		      _EX_instr_type = RD_instr_type;
                       //Passing these as registers to WB.
                       _EX_write_sig = RD_write_sig; 
                       _EX_write_reg = RD_write_reg;
@@ -374,10 +322,7 @@ module top
             WRITEBACK: begin
                     //To write back to the register file.
                     //There should be write signal.         
-                    _WB_val = EX_alu_result;
-                    _WB_reg = EX_write_reg;
-                    _WB_sig = EX_write_sig;
-                    
+                    _WB_instr = EX_instr;
                     next_state = GETINSTR;
                     _instr_index = instr_index + 1;
 
@@ -405,12 +350,12 @@ module top
     reg_file register_mod (
                 //INPUTS
                 //Used Only From READ Stage.
-                .clk(clk), .reset(reset), .rs1(_RD_rs1), 
-                .rs2(_RD_rs2),  
+                .clk(clk), .reset(reset), .rs1(ID_rs1), 
+                .rs2(ID_rs2),  
                 //Used Only From WB Stage.
-                .write_sig(_WB_sig), 
-                .write_val(_WB_val), 
-                .write_reg(_WB_reg),
+                .write_sig(EX_write_sig), 
+                .write_val(EX_alu_result), 
+                .write_reg(EX_write_reg),
 
                 //OUTPUTS
                 //Used Only From READ Stage.
@@ -420,8 +365,8 @@ module top
     //In Execute state
     alu alu_mod (
                 //INPUTS
-                .clk(clk), .opcode(_EX_alu_op), .value1(_EX_rs1_val),
-                .value2(_EX_rs2_val), .immediate(_EX_immediate), .shamt(_EX_shamt), .instr_type(_EX_instr_type),
+                .clk(clk), .opcode(RD_alu_op), .value1(RD_rs1_val),
+                .value2(RD_rs2_val), .immediate(RD_immediate), .shamt(RD_shamt), .instr_type(RD_instr_type),
 
                 //OUTPUTS
                 .result(_EX_alu_result)
@@ -480,6 +425,9 @@ module top
         EX_write_reg <= _EX_write_reg;
         EX_write_sig <= _EX_write_sig;
         EX_instr <= _EX_instr;
+
+        //Set WB registers
+        WB_instr <= _WB_instr;
        
     end
 
