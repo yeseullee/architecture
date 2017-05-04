@@ -3,7 +3,16 @@
 module top
 #(
     BUS_DATA_WIDTH = 64,
-    BUS_TAG_WIDTH = 13
+    BUS_TAG_WIDTH = 13,
+    INIT=4'd0,
+    FETCH=4'd1,
+    WAIT=4'd2,
+    GETINSTR = 4'd3,
+    DECODE=4'd4,
+    READ = 4'd5,
+    EXECUTE=4'd6,
+    WRITEBACK = 4'd7,
+    IDLE=4'd8
 )
 (
     input  clk,
@@ -27,10 +36,9 @@ module top
 
     logic [63:0] pc;
     logic [63:0] _pc;
-    enum { INIT=4'd0, FETCH=4'd1, WAIT=4'd2, GETINSTR = 4'd3, 
-            DECODE=4'd4, READ = 4'd5, EXECUTE=4'd6, 
-            WRITEBACK = 4'd7, IDLE=4'd8} 
-                state, next_state;
+
+    reg [3:0] state;
+    reg [3:0] next_state;
     reg [31:0] instr;
     reg [31:0] _instr;
     reg [4:0] fetch_count;
@@ -142,6 +150,15 @@ module top
     logic [31:0] _instrlist[15:0];
     logic [5:0] instr_index;
     logic [5:0] _instr_index;
+    
+    logic [3:0] DECODE_state;
+    logic [3:0] _DECODE_state;
+    logic [3:0] READ_state;
+    logic [3:0] _READ_state;
+    logic [3:0] EXECUTE_state;
+    logic [3:0] _EXECUTE_state;
+    logic [3:0] WRITEBACK_state;
+    logic [3:0] _WRITEBACK_state;
 /*
     arbiter arbiter_mod (
         //INPUTS
@@ -175,11 +192,6 @@ module top
         _pc = pc;
         _instr = instr;
         _fetch_count = fetch_count;
-        _instr_index = instr_index;
-
-        for (int i = 0; i < 16; i++) begin
-            _instrlist[i] = instrlist[i];
-        end
 
         case(state)
             INIT: begin
@@ -285,50 +297,59 @@ module top
 
                       //GOOD FOR NOW
                       _instr = instrlist[instr_index];
-                       next_state = DECODE;
+                      //Get more instructions
+                       next_state = GETINSTR;
+                       _instr_index = instr_index + 1;
+                       //Start decode.
+                       _DECODE_state = DECODE;
 
                      //THE END
                       if(_instr == 32'b0) begin
                         next_state = IDLE;
                       end
                     end
-                  end              
-            DECODE: begin
-                    _ID_instr = instr;
-                    next_state = READ;
                   end
-            READ: begin
-
-                      _RD_immediate = ID_immediate;
-                      _RD_alu_op = ID_alu_op;
-                      _RD_shamt = ID_shamt;
-                      _RD_write_sig = ID_write_sig;
-                      _RD_write_reg = ID_rd;
-                      _RD_instr_type = ID_instr_type;
-                      _RD_instr = ID_instr;
-
-                      next_state = EXECUTE;
-                    end
-            EXECUTE: begin
-                      //Passing these as registers to WB.
-                      _EX_write_sig = RD_write_sig; 
-                      _EX_write_reg = RD_write_reg;
-                      _EX_instr = RD_instr;
-
-                    //To get more instructions.
-                    next_state = WRITEBACK; 
-
-                   end
-            WRITEBACK: begin
-                    //To write back to the register file.
-                    //There should be write signal.         
-                    _WB_instr = EX_instr;
-                    next_state = GETINSTR;
-                    _instr_index = instr_index + 1;
-
-                    end
             IDLE: $finish;
-        endcase
+      endcase
+    
+    end
+    
+    always_comb begin
+        if(DECODE_state == DECODE) begin
+            _ID_instr = instr;
+            _READ_state = READ;
+        end
+        if(READ_state == READ) begin
+
+            _RD_immediate = ID_immediate;
+            _RD_alu_op = ID_alu_op;
+            _RD_shamt = ID_shamt;
+            _RD_write_sig = ID_write_sig;
+            _RD_write_reg = ID_rd;
+            _RD_instr_type = ID_instr_type;
+            _RD_instr = ID_instr;
+
+            _EXECUTE_state = EXECUTE;
+                      
+        end
+        if(EXECUTE_state == EXECUTE) begin
+            //Passing these as registers to WB.
+            _EX_write_sig = RD_write_sig; 
+            _EX_write_reg = RD_write_reg;
+            _EX_instr = RD_instr;
+
+            //To get more instructions.
+            _WRITEBACK_state = WRITEBACK; 
+        end
+        if(WRITEBACK_state == WRITEBACK) begin
+            //To write back to the register file.
+            //There should be write signal.   
+            //TODO      
+            _WB_instr = EX_instr;
+            next_state = GETINSTR;
+
+        end
+            
     end
 
 
@@ -397,6 +418,11 @@ module top
         for (int i = 0; i < 16; i++) begin
             instrlist[i] <= _instrlist[i];
         end
+        
+        DECODE_state <= _DECODE_state;
+        READ_state <= _READ_state;
+        EXECUTE_state <= _EXECUTE_state;
+        WRITEBACK_state <= _WRITEBACK_state;
 
         //set ID registers
         ID_rd <= _ID_rd;
@@ -406,7 +432,7 @@ module top
         ID_alu_op <= _ID_alu_op;
         ID_shamt <= _ID_shamt;
         ID_write_sig <= _ID_write_sig;
-	ID_instr_type <= _ID_instr_type;
+        ID_instr_type <= _ID_instr_type;
         ID_instr <= _ID_instr;
 
         //set READ registers
