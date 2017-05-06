@@ -21,7 +21,7 @@ module direct_cache
 		DRAMWRT = 12,
 
 		//Cache constants
-		CACHE_TAG = 55,		//tag = bits in address (64) - bits in offset (4) - bits in index (5)
+		CACHE_TAG = BUS_DATA_WIDTH - OFFSET - CACHE_INDEX,
 		CACHE_INDEX = 5,	//index = log2(32) (# sets in the cache)
 		NUM_CACHE_LINES = 32,
 		OFFSET = 6,			//offset = log2(64) (# addresses in cache line: 8 * 8 sets of 64 bits)
@@ -109,7 +109,7 @@ module direct_cache
 			READVAL: begin
 					//read value to be written from processor
 					if(p_bus_reqcyc == 1) begin
-						_content[64*ptr +: 63] = p_bus_req;
+						_content[64*ptr +: 64] = p_bus_req;
 						next_state = ACKVAL;
 					end
 					else begin
@@ -216,7 +216,7 @@ module direct_cache
 					if(m_bus_respcyc == 1) begin
 						m_bus_respack = 1;
 						//_content[(DATA_LENGTH-1)-(64*ptr):(DATA_LENGTH-1)-(64*(ptr+1)] = m_bus_resp;
-						_content[64*ptr +: 63] = m_bus_resp;
+						_content[64*ptr +: 64] = m_bus_resp;
 						next_ptr = ptr + 1;
 						if(ptr == 7) begin
 							next_state = UPDATE;
@@ -255,6 +255,7 @@ module direct_cache
 				end
 			DRAMWREQ: begin
 					m_bus_reqcyc = 1;
+					m_bus_reqtag = req_tag;
 					m_bus_req = req_addr;
 					if(m_bus_reqack == 1) begin
 							next_ptr = 0;
@@ -266,7 +267,7 @@ module direct_cache
 				end
 			DRAMWRT: begin
 					m_bus_reqcyc = 1;
-					m_bus_req = content[64*ptr +: 63];
+					m_bus_req = content[64*ptr +: 64];
 					if(m_bus_reqack == 1) begin
 						next_ptr = ptr + 1;
 						if(ptr == 7) begin
@@ -286,7 +287,8 @@ module direct_cache
 		case(state)
 			RESPOND:begin
 					p_bus_respcyc = 1;
-					p_bus_resp = content[64*ptr +: 63];
+					p_bus_resp = content[64*ptr +: 64];
+					p_bus_resptag = req_tag;
 					next_ptr = ptr;
 					next_state = RESPACK;
 				end
