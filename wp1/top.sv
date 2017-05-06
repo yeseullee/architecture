@@ -142,6 +142,9 @@ module top
     logic [511:0] MEM_read_value;
     logic [511:0] _MEM_read_value;
 
+    //WB pass along
+    logic [31:0] WB_instr;
+    logic [31:0] _WB_instr;
 
     //cache variables
     logic cache = 0;  //set to 0 to remove the cache, and comment out cache initialization block
@@ -275,7 +278,7 @@ module top
         _instr = instr;
         _fetch_count = fetch_count;
 
-        _MEM_status = MEM_status;
+        _MEM_status = 0;
         MEM_next_ptr = MEM_ptr;
         _MEM_value = MEM_value;
 
@@ -306,11 +309,14 @@ module top
                     // Getting all 16 instrs (before, we got 2 * 8 times)
                     //CACHE
                     if(IF_arbiter_bus_respcyc == 1) begin
-                      _instrlist[fetch_count] = bus_resp[31:0];
-                      _instrlist[fetch_count + 1] = bus_resp[63:32];
+:q
+                      _instrlist[fetch_count] = IF_arbiter_bus_resp[31:0];
+                      _instrlist[fetch_count + 1] = IF_arbiter_bus_resp[63:32];
 
                       // For next time,
-                      _fetch_count = fetch_count + 2;
+                      if(IF_arbiter_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]}) begin
+                        _fetch_count = fetch_count + 2;
+		      end
                       IF_arbiter_bus_respack = 1;
                       if(_fetch_count < 16) begin
                         next_state = WAIT;
@@ -392,7 +398,7 @@ module top
             _MEM_instr = EX_instr;
             _MEM_size = EX_mem_size;
             _MEM_rs2_val = EX_rs2_val;
-            next_state = MEM;
+            _MEM_state = MEM;
 
             //read from memory if store or load, go immediately to writeback otherwise
             if(_MEM_access != `MEM_NO_ACCESS) begin
@@ -557,6 +563,7 @@ module top
         READ_state <= _READ_state;
         EXECUTE_state <= _EXECUTE_state;
         WRITEBACK_state <= _WRITEBACK_state;
+	MEM_state <= _MEM_state;
 
         //set ID registers
         ID_rd <= _ID_rd;

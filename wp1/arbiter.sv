@@ -71,6 +71,8 @@ module arbiter
     logic [8:0] next_ptr;
     logic channel;
     logic _channel;
+    logic has_ack;
+    logic _has_ack;
 
 
     //NOTE: multiple always comb blocks used to keep verilator happy
@@ -97,7 +99,7 @@ module arbiter
                     end
 
                     //receiving requests on channel 1
-                    if(reqcyc1 == 1) begin
+                    else if(reqcyc1 == 1) begin
                         _req_addr = req1;
                         _req_tag = reqtag1;
                         _channel = 1;
@@ -150,7 +152,7 @@ module arbiter
                     end
 
                     //acknowledge channel 1
-                    if(channel == 1) begin
+                    else if(channel == 1) begin
                         reqack1 = 1;
                     end
 
@@ -170,7 +172,7 @@ module arbiter
                     end
 
                     //acknowledge channel 1
-                    if(channel == 1) begin
+                    else if(channel == 1) begin
                         reqack1 = 1;
                     end
 
@@ -193,6 +195,7 @@ module arbiter
         bus_reqcyc = 0;
         bus_respack = 0;
         _content = content;
+	_has_ack = has_ack;
        
         case(state)
             DRAMWREQ: begin
@@ -242,6 +245,7 @@ module arbiter
                         if(ptr == 7) begin
                             next_state = RESPOND;
                             next_ptr = 0;
+			    _has_ack = 1;
                         end
                         else begin
                             next_state = RECEIVE;
@@ -257,8 +261,6 @@ module arbiter
 
     //respond to processor: RESPOND
     always_comb begin
-        respcyc0 = 0;
-        respcyc1 = 0;
         case(state)
             RESPOND:begin
                     //channel 0
@@ -269,13 +271,17 @@ module arbiter
                     end
 
                     //channel 1
-                    if(channel == 1) begin
+                    else if(channel == 1) begin
                         respcyc1 = 1;
                         resptag1 = req_tag;
                         resp1 = content[64*ptr +: 64];
                     end
 
                     //transition to next state
+		    if(has_ack == 1) begin
+		        bus_respack = 1;
+			_has_ack = 0;
+		    end
                     next_ptr = ptr;
                     next_state = RESPACK;
                 end
@@ -303,7 +309,7 @@ module arbiter
                     end
 
                     //channel 1
-                    if(channel == 1) begin
+                    else if(channel == 1) begin
                         if(respack1 == 1) begin
                             next_ptr = ptr + 1;
                             if(ptr == 7) begin
@@ -328,6 +334,7 @@ module arbiter
             req_tag <= 0;
             content <= 0;
             ptr <= 0;
+	    has_ack <= 0;
         end
 
         //write values from wires to register
@@ -337,6 +344,7 @@ module arbiter
         content <= _content;
         ptr <= next_ptr;
         channel <= _channel;
+	has_ack <= _has_ack;
     end
 
 endmodule
