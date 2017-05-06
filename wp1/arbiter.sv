@@ -1,176 +1,342 @@
+`include "Sysbus.defs"
 module arbiter
-#(
-    BUS_DATA_WIDTH = 64,
-    BUS_TAG_WIDTH = 13
-)
-(
-    input clk,
+    #(
+        //Memory bus constants
+        BUS_DATA_WIDTH = 64,
+        BUS_TAG_WIDTH = 13,
+        DATA_LENGTH = 512,
 
-    input [BUS_DATA_WIDTH-1:0] req0,
-    input reqcyc0,
-    input [BUS_TAG_WIDTH-1:0] reqtag0,
-    input respack0,
-    
-    input [BUS_DATA_WIDTH-1:0] req1,
-    input reqcyc1,
-    input [BUS_TAG_WIDTH-1:0] reqtag1,
-    input respack1,
-    
-    output [BUS_DATA_WIDTH-1:0] resp0,
-    output respcyc0,
-    output [BUS_TAG_WIDTH-1:0] resptag0,
-    output reqack0,
-    
-    output [BUS_DATA_WIDTH-1:0] resp1,
-    output respcyc1,
-    output [BUS_TAG_WIDTH-1:0] resptag1,
-    output reqack1,
-    
-    //With the bus
-    output [BUS_DATA_WIDTH-1:0]  bus_req, //the address for request
-    output bus_reqcyc, //request acknowledged
-    output [BUS_TAG_WIDTH-1:0] bus_reqtag, //
-    output bus_respack, //acknolwedgement for response. 
-    
-    input [BUS_DATA_WIDTH-1:0] bus_resp, //the response
-    input bus_respcyc, //response acknowledgement
-    input [BUS_TAG_WIDTH-1:0] bus_resptag,
-    input bus_reqack //acknowledgement for request.
-    
-);
-    logic channel = 0;
-    logic [4:0] fetch_count;
-    logic [4:0] _fetch_count;
-    logic addr;
-    logic _addr;
-    enum {IDLE=4'd0, FETCH = 4'd1, WAIT = 4'd2, SEND = 4'd3, WAIT_RESP = 4'd4} 
-	state, next_state;
+        //State values
+        INITIAL = 0,
+        ACCEPT = 1,
+        ACKPROC = 2,
 
-    logic [31:0] instrlist[15:0];
-    logic [31:0] _instrlist[15:0];
-    logic [5:0] instr_index;
-    logic [5:0] _instr_index;
+        //write states
+        READVAL = 3,
+        ACKVAL = 4,
+        DRAMWREQ = 5,
+        DRAMWRT = 6,
 
+        //read states
+        DRAMRD = 7,
+        RECEIVE = 8,
+        RESPOND = 9,
+        RESPACK = 10
+    )
+    (
+        input  clk,
+        input reset,
+
+        //input 1 (instruction fetch)
+        input reqcyc0,
+        output reqack0,
+        output respcyc0,
+        input respack0,
+        input [BUS_DATA_WIDTH-1:0] req0,
+        input [BUS_TAG_WIDTH-1:0] reqtag0,
+        output [BUS_DATA_WIDTH-1:0] resp0,
+        output [BUS_TAG_WIDTH-1:0] resptag0,
+        
+        //input 2 (memory access data)
+        input reqcyc1,
+        output reqack1,
+        output respcyc1,
+        input respack1,
+        input [BUS_DATA_WIDTH-1:0] req1,
+        input [BUS_TAG_WIDTH-1:0] reqtag1,
+        output [BUS_DATA_WIDTH-1:0] resp1,
+        output [BUS_TAG_WIDTH-1:0] resptag1,
+        
+        //to memory
+        output bus_reqcyc,                          //request acknowledged
+        input bus_reqack,                           //acknowledgement for request.
+        input bus_respcyc,                          //response acknowledgement
+        output bus_respack,                         //acknolwedgement for response. 
+        output [BUS_DATA_WIDTH-1:0]  bus_req,       //the address to request
+        output [BUS_TAG_WIDTH-1:0] bus_reqtag,      //determine read/write
+        input [BUS_DATA_WIDTH-1:0] bus_resp,        //the response
+        input [BUS_TAG_WIDTH-1:0] bus_resptag       //determine read/write
+    );
+
+    //variables to store information
+    logic [63:0] req_addr;
+    logic [63:0] _req_addr;
+    logic [12:0] req_tag;
+    logic [12:0] _req_tag;
+    logic [3:0] state;
+    logic [3:0] next_state;
+    logic [DATA_LENGTH-1:0] content;
+    logic [DATA_LENGTH-1:0] _content;
+    logic [8:0] ptr;
+    logic [8:0] next_ptr;
+    logic channel;
+    logic _channel;
+
+
+    //NOTE: multiple always comb blocks used to keep verilator happy
+    //  processor resp, ack, and cyc variables cannot be set or used within the same block
+   
+    //accept requests and values from the processor: INITIAL, ACCEPT, READVAL
     always_comb begin
+        _channel = channel;
+        case(state)
+            INITIAL: begin
+                    //Initialize the system
+                    next_state = ACCEPT;
+                end
+            ACCEPT: begin
+                    //wait for requests from the processor
 
+                    //receiving requeston on channel 0
+                    if(reqcyc0 == 1) begin
+                        _req_addr = req0;
+                        _req_tag = reqtag0;
+                        _channel = 0;
+                        next_ptr = 0;
+                        next_state = ACKPROC;
+                    end
+
+                    //receiving requests on channel 1
+                    if(reqcyc1 == 1) begin
+                        _req_addr = req1;
+                        _req_tag = reqtag1;
+                        _channel = 1;
+                        next_ptr = 0;
+                        next_state = ACKPROC;
+                    end
+
+                    //else loop
+                    else begin
+                        next_state = ACCEPT;
+                    end
+                end
+            READVAL: begin
+                    //read value to be written from processor
+                    //read value from channel 0
+                    if(channel == 0) begin
+                        if(reqcyc0 == 1) begin
+                            _content[64*ptr +: 64] = req0;
+                            next_state = ACKVAL;
+                        end
+                        else begin
+                            next_state = READVAL;
+                        end
+                    end
+
+                    //read value from channel 1
+                    else if(channel == 1) begin
+                        if(reqcyc1 == 1) begin
+                            _content[64*ptr +: 64] = req1;
+                            next_state = ACKVAL;
+                        end
+                        else begin
+                            next_state = READVAL;
+                        end
+                    end
+                end
+        endcase
+    end
+
+
+    //acknowledge receiving request and values from processor: ACKPROC, ACKVAL
+    always_comb begin
+        reqack0 = 0;
+        reqack1 = 0;
+        case(state)
+            ACKPROC: begin
+                    //acknowledge on channel 0
+                    if(channel == 0) begin
+                        reqack0 = 1;
+                    end
+
+                    //acknowledge channel 1
+                    if(channel == 1) begin
+                        reqack1 = 1;
+                    end
+
+                    //transition to next state
+                    if(req_tag[12] == `SYSBUS_WRITE) begin
+                        _content = 0;
+                        next_state = READVAL;
+                    end
+                    else begin
+                        next_state = DRAMRD;
+                    end
+                end
+            ACKVAL: begin
+                    //acknowledge on channel 0
+                    if(channel == 0) begin
+                        reqack0 = 1;
+                    end
+
+                    //acknowledge channel 1
+                    if(channel == 1) begin
+                        reqack1 = 1;
+                    end
+
+                    //transition to next state
+                    next_ptr = ptr + 1;
+                    if(ptr == 7) begin
+                        next_state = DRAMWREQ;
+                        next_ptr = 0;
+                    end
+                    else begin
+                        next_state = READVAL;
+                    end
+                end
+        endcase
+    end
+
+    //interact with the memory: DRAMWREQ, DRAMWRT, DRAMRD, RECEIVE
+    always_comb begin
+        //misc related variables
         bus_reqcyc = 0;
         bus_respack = 0;
-        bus_req = 64'h0;
-        bus_reqtag = 0;
-
-        _fetch_count = fetch_count;
-        _addr = addr;
-        _instr_index = instr_index;
-
-        for (int i = 0; i < 16; i++) begin
-            _instrlist[i] = instrlist[i];
-        end
-
-        case(state)
-            IDLE: begin
-
-                //If 0 is requesting
-                if(reqcyc0 == 1)begin
-                    //Acknolwedge the request
-                    reqack0 = 1;
-                    next_state = FETCH;
-                    channel = 0; 
-                
-                    //Send request here.
-                    bus_req = req0;
-                    bus_reqtag = reqtag0;
-                    bus_reqcyc = 1;  
-                end
-            
-                //If 1 is requesting
-                else if(reqcyc1 == 1)begin
-                    //Acknowledge the request
-                    reqack1 = 1;
-                    next_state = FETCH;
-                    channel = 1;
-                
-                    //Send request here.
-                    bus_req = req1;
-                    bus_reqtag = reqtag1;
-                    bus_reqcyc = 1;
-                end
+        _content = content;
        
-            end
-            FETCH: begin
-                if(!bus_reqack) begin
-                    next_state = FETCH;
-                end
-                else begin
-                    next_state = WAIT;
-                end
-            end
-            WAIT: begin
-
-                if(bus_respcyc == 1) begin
-                    _instrlist[fetch_count] = bus_resp[31:0];
-                    _instrlist[fetch_count + 1] = bus_resp[63:32];
-
-                    // For next time,
-                    _fetch_count = fetch_count + 2;
-                    bus_respack = 1;
-                    if(_fetch_count < 16) begin
-                        next_state = WAIT;
-                    end else begin
-                        // For the first instr after fetch.
-                        next_state = SEND;
-                        _instr_index = 0;
-                        _fetch_count = 0;
+        case(state)
+            DRAMWREQ: begin
+                    bus_reqcyc = 1;
+                    bus_req = req_addr;
+                    if(bus_reqack == 1) begin
+                            next_ptr = 0;
+                            next_state = DRAMWRT;
                     end
-                end else begin
-                    next_state = WAIT;
-                end
-            end
-            SEND: begin 
-                //Response ready.
-                if(channel == 0) begin                
-                    //Give the response back
-                    respcyc1 = 1;
-                    resp0 = instrlist[instr_index];
-                    resptag0 = bus_resptag; //Not working.
-                end
-                else if(channel == 1) begin
-                    //Give the response back
-                    respcyc1 = 1;
-                    resp1 = instrlist[instr_index];
-                    resptag1 = bus_resptag; //Not working.
-                end
-            end
-            WAIT_RESP: begin
-
-                //If get respack from client and count == 8, go to IDLE.
-                if(channel == 0 && respack0 == 1) begin
-                    _instr_index = instr_index + 1; 
-                    next_state = SEND;
-                    if(_instr_index >= 16) begin
-                        next_state = IDLE;
+                    else begin
+                        next_state = DRAMWREQ;
                     end
                 end
-                else if(channel == 1 && respack1 == 1) begin
-                    _instr_index = instr_index + 1; 
-                    next_state = SEND;
-                    if(_instr_index >= 16) begin
-                        next_state = IDLE;
+            DRAMWRT: begin
+                    bus_reqcyc = 1;
+                    bus_req = content[64*ptr +: 64];
+                    if(bus_reqack == 1) begin
+                        next_ptr = ptr + 1;
+                        if(ptr == 7) begin
+                            next_state = ACCEPT;
+                        end
+                        else begin
+                            next_state = DRAMWRT;
+                        end
                     end
                 end
-            end
+            DRAMRD: begin
+                    //send request to memory
+                    bus_reqcyc = 1;
+                    bus_req = req_addr;
+                    bus_reqtag = req_tag;
+
+                    //determine if memory received request
+                    if(bus_reqack == 1) begin
+                        next_state = RECEIVE;
+                    end
+                    else begin
+                        next_state = DRAMRD;
+                    end
+                end
+            RECEIVE: begin
+                    //receive reponse from memory if present
+                    if(bus_respcyc == 1) begin
+                        bus_respack = 1;
+                        _content[64*ptr +: 64] = bus_resp;
+                        next_ptr = ptr + 1;
+                        if(ptr == 7) begin
+                            next_state = RESPOND;
+                            next_ptr = 0;
+                        end
+                        else begin
+                            next_state = RECEIVE;
+                        end
+                    end
+                    else begin
+                        bus_respack = 0;
+                        next_state = RECEIVE;
+                    end
+                end
+        endcase
+    end
+
+    //respond to processor: RESPOND
+    always_comb begin
+        respcyc0 = 0;
+        respcyc1 = 0;
+        case(state)
+            RESPOND:begin
+                    //channel 0
+                    if(channel == 0) begin
+                        respcyc0 = 1;
+                        resptag0 = req_tag;
+                        resp0 = content[64*ptr +: 64];
+                    end
+
+                    //channel 1
+                    if(channel == 1) begin
+                        respcyc1 = 1;
+                        resptag1 = req_tag;
+                        resp1 = content[64*ptr +: 64];
+                    end
+
+                    //transition to next state
+                    next_ptr = ptr;
+                    next_state = RESPACK;
+                end
+        endcase
+    end
+
+    //determine if processor received response: RESPACK
+    always_comb begin
+        case(state)
+            RESPACK: begin
+                    //channel 0
+                    if(channel == 0) begin
+                        if(respack0 == 1) begin
+                            next_ptr = ptr + 1;
+                            if(ptr == 7) begin
+                                next_state = ACCEPT;
+                            end
+                            else begin
+                                next_state = RESPOND;
+                            end
+                        end
+                        else begin
+                            next_state = RESPACK;
+                        end
+                    end
+
+                    //channel 1
+                    if(channel == 1) begin
+                        if(respack1 == 1) begin
+                            next_ptr = ptr + 1;
+                            if(ptr == 7) begin
+                                next_state = ACCEPT;
+                            end
+                            else begin
+                                next_state = RESPOND;
+                            end
+                        end
+                        else begin
+                            next_state = RESPACK;
+                        end
+                    end
+                end
         endcase
     end
 
     always_ff @ (posedge clk) begin
-        state <= next_state;
-        fetch_count <= _fetch_count;
-        addr <= _addr;
-        instr_index <= _instr_index;
-
-        for (int i = 0; i < 16; i++) begin
-            instrlist[i] <= _instrlist[i];
+        if(reset) begin
+            state <= INITIAL;
+            req_addr <= 0;
+            req_tag <= 0;
+            content <= 0;
+            ptr <= 0;
         end
 
+        //write values from wires to register
+        state <= next_state;
+        req_addr <= _req_addr;
+        req_tag <= _req_tag;
+        content <= _content;
+        ptr <= next_ptr;
+        channel <= _channel;
     end
 
 endmodule
