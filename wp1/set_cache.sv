@@ -214,18 +214,19 @@ module set_cache //2-way set associative cache
 				end
 			RECEIVE: begin
 					//receive reponse from memory if present
-					if(m_bus_respcyc == 1) begin
+					if(ptr == 8) begin
+						next_state = UPDATE;
+						next_ptr = 0;
+					end
+					else if(m_bus_respcyc == 1) begin
 						m_bus_respack = 1;
 						//_content[(DATA_LENGTH-1)-(64*ptr):(DATA_LENGTH-1)-(64*(ptr+1)] = m_bus_resp;
 						_content[64*ptr +: 64] = m_bus_resp;
-						next_ptr = ptr + 1;
-						if(ptr == 7) begin
-							next_state = UPDATE;
-							next_ptr = 0;
+						next_ptr = ptr;
+						if(m_bus_resp != _content[64*(ptr-1) +: 64] || m_bus_resp == 0) begin
+							next_ptr = ptr + 1;
 						end
-						else begin
-							next_state = RECEIVE;
-						end
+						next_state = RECEIVE;
 					end
 					else begin
 					   	m_bus_respack = 0;

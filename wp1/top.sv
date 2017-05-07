@@ -166,8 +166,8 @@ module top
     logic [BUS_DATA_WIDTH-1:0] MEM_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] MEM_cache_bus_resptag;
 
-    /*direct_cache IF_cache_mod (
-    //set_cache IF_cache_mod (
+    /*//direct_cache IF_cache_mod (
+    set_cache IF_cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
         .p_bus_reqcyc(IF_cache_bus_reqcyc), .p_bus_req(IF_cache_bus_req), 
@@ -181,8 +181,8 @@ module top
         .m_bus_reqcyc(IF_arbiter_bus_reqcyc), .m_bus_req(IF_arbiter_bus_req),
         .m_bus_reqtag(IF_arbiter_bus_reqtag), .m_bus_respack(IF_arbiter_bus_respack)
     );
-    direct_cache MEM_cache_mod (
-    //set_cache MEM_cache_mod (
+    //direct_cache MEM_cache_mod (
+    set_cache MEM_cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
         .p_bus_reqcyc(MEM_cache_bus_reqcyc), .p_bus_req(MEM_cache_bus_req), 
@@ -331,7 +331,7 @@ module top
                 end
             WAIT:begin
                     // Getting all 16 instrs (before, we got 2 * 8 times)
-                    if(cache == 0) begin
+                    if(cache == 1) begin
                         if(fetch_count == 16) begin
                             IF_cache_bus_respack = 1;
                             // For the first instr after fetch.
@@ -455,7 +455,7 @@ module top
             if(_MEM_access != `MEM_NO_ACCESS) begin
                 case(MEM_status)
                     0: begin  //make request to memory to read
-                            if(cache == 1) 
+                            if(cache == 1) begin 
                                 MEM_cache_bus_reqcyc = 1;
                                 MEM_cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
                                 MEM_cache_bus_req = _MEM_alu_result - (_MEM_alu_result % 512); //TODO: find and floor requested address
