@@ -5,11 +5,12 @@ module top
     BUS_DATA_WIDTH = 64,
     BUS_TAG_WIDTH = 13,
 
-	INIT = 1,
-	FETCH = 2,
-	WAIT = 3,
-	WRITE = 4,
-	SEND = 5
+	INIT = 0,
+	FETCH = 1,
+	WAIT = 2,
+	WRITE = 3,
+	SEND = 4,
+	BREAK = 5
 )
 (
     input  clk,
@@ -31,7 +32,7 @@ module top
     input  [BUS_TAG_WIDTH-1:0] bus_resptag
 );
     //insert cache variables
-    logic cache = 1;  //set to 0 to remove the cache, and comment out cache initialization block
+    logic cache = 0;
     logic cache_bus_reqcyc;
     logic cache_bus_respack;
     logic [BUS_DATA_WIDTH-1:0] cache_bus_req;
@@ -41,7 +42,7 @@ module top
     logic [BUS_DATA_WIDTH-1:0] cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] cache_bus_resptag;
  
-    cache DUT (
+    /*cache DUT (
         //INPUTS
         .clk(clk), .reset(reset),
         .p_bus_reqcyc(cache_bus_reqcyc), .p_bus_req(cache_bus_req), 
@@ -54,7 +55,7 @@ module top
         .p_bus_resp(cache_bus_resp), .p_bus_resptag(cache_bus_resptag),
         .m_bus_reqcyc(bus_reqcyc), .m_bus_req(bus_req),
         .m_bus_reqtag(bus_reqtag), .m_bus_respack(bus_respack)
-    );
+    );*/
 
 	logic [63:0] _pc;
 	logic [63:0] pc;
@@ -66,75 +67,155 @@ module top
 	logic [3:0] next_state;
  
     always_comb begin
-        cache_bus_reqcyc = 0;
-        cache_bus_respack = 0;
-        cache_bus_req = 64'h0;
-        cache_bus_reqtag = 0;
+	next_ptr = ptr;
+	next_state = state;
+	_pc = pc;
+	for(int i = 0; i < 7; i++) begin
+		_response[i] = response[i];
+	end
+	if(cache == 1) begin
+	        cache_bus_reqcyc = 0;
+        	cache_bus_respack = 0;
+	        cache_bus_req = 64'h0;
+        	cache_bus_reqtag = 0;
+	end
+	else begin
+	        bus_reqcyc = 0;
+        	bus_respack = 0;
+	        bus_req = 64'h0;
+        	bus_reqtag = 0;
+	end
 
         case(state)
             	INIT: begin
                 	if(!reset) begin
-                		next_state = FETCH;
+                		next_state = WRITE;
                 	end
                 	else begin
                 		next_state = INIT;
                 	end
                 end
             	FETCH: begin
-                      cache_bus_reqcyc = 1;
-                      cache_bus_req = pc;
-                      cache_bus_reqtag = {`SYSBUS_READ,`SYSBUS_MEMORY,8'b0};
-                      if(cache_bus_reqack) begin
-                          //_pc = pc + 64; 
-                          next_state = WAIT;
-			  next_ptr = 0;
-                      end               
-                      else begin
-                          next_state = FETCH;
-                      end
-                end
-            	WAIT:  begin
-                      if(cache_bus_respcyc == 1) begin
-			_response[ptr] = cache_bus_resp;
-                        next_ptr = ptr + 1;
-                        if(ptr == 7) begin
-				$finish;
+			if(cache == 1) begin
+	                      cache_bus_reqcyc = 1;
+        	              cache_bus_req = pc;
+                	      cache_bus_reqtag = {`SYSBUS_READ,`SYSBUS_MEMORY,8'b0};
+	                      if(cache_bus_reqack) begin
+        	                  //_pc = pc + 64; 
+                	          next_state = WAIT;
+				  next_ptr = 0;
+	                      end               
+        	              else begin
+                	          next_state = FETCH;
+                     	      end
 			end
 			else begin
-				next_state = WAIT;
+	                      bus_reqcyc = 1;
+        	              bus_req = pc;
+                	      bus_reqtag = {`SYSBUS_READ,`SYSBUS_MEMORY,8'b0};
+	                      if(bus_reqack) begin
+        	                  //_pc = pc + 64; 
+                	          next_state = WAIT;
+				  next_ptr = 0;
+	                      end               
+        	              else begin
+                	          next_state = FETCH;
+			      end
 			end
-                      end
-                      else begin
-                        next_state = WAIT;
-                      end
+                end
+            	WAIT:  begin
+			if(cache == 1) begin
+	                      if(cache_bus_respcyc == 1) begin
+				_response[ptr] = cache_bus_resp;
+	                        next_ptr = ptr + 1;
+				cache_bus_respack = 1;
+                	        if(ptr == 7) begin
+					$finish;
+				end
+				else begin
+					next_state = WAIT;
+				end
+	                      end
+                	      else begin
+        	                next_state = WAIT;
+	                      end
+			end
+			else begin
+	                      if(bus_respcyc == 1) begin
+				_response[ptr] = bus_resp;
+        	                next_ptr = ptr + 1;
+				bus_respack = 1;
+	                        if(ptr == 7) begin
+					$finish;
+				end
+				else begin
+					next_state = WAIT;
+				end
+	                      end
+                	      else begin
+        	                next_state = WAIT;
+	                      end
+			end
                 end
 		WRITE: begin
-                	cache_bus_reqcyc = 1;
-                	cache_bus_req = pc;
-                	cache_bus_reqtag = {`SYSBUS_WRITE,`SYSBUS_MEMORY,8'b0};
-                	if(cache_bus_reqack) begin
-                		next_state = SEND;
-                	end               
-                	else begin
-				next_state = WRITE;
+			if(cache == 1) begin
+                		cache_bus_reqcyc = 1;
+                		cache_bus_req = pc;
+        	        	cache_bus_reqtag = {`SYSBUS_WRITE,`SYSBUS_MEMORY,8'b0};
+	                	if(cache_bus_reqack) begin
+                			next_state = SEND;
+                		end               
+                		else begin
+					next_state = WRITE;
+				end
+			end
+			else begin
+                		bus_reqcyc = 1;
+                		bus_req = pc;
+        	        	bus_reqtag = {`SYSBUS_WRITE,`SYSBUS_MEMORY,8'b0};
+	                	if(bus_reqack) begin
+                			next_state = SEND;
+                		end               
+                		else begin
+					next_state = WRITE;
+				end
 			end
 		end
 		SEND: begin
-                	cache_bus_reqcyc = 1;
-                	cache_bus_req = -1;
-                	cache_bus_reqtag = {`SYSBUS_WRITE,`SYSBUS_MEMORY,8'b0};
-                	if(cache_bus_reqack) begin
-				next_ptr = ptr + 1;
-				if(ptr == 7) begin
-					next_state = FETCH;
-				end
-				else begin
+			if(cache == 1) begin
+        	        	cache_bus_req = 0-ptr-1;
+                		cache_bus_reqtag = {`SYSBUS_WRITE,`SYSBUS_MEMORY,8'b0};
+	                	cache_bus_reqcyc = 1;
+                		if(cache_bus_reqack) begin
+					next_ptr = ptr + 1;
+					if(ptr == 7) begin
+						next_state = BREAK;
+					end
+					else begin
+						next_state = SEND;
+					end
+                		end               
+	                	else begin
 					next_state = SEND;
 				end
-                	end               
-                	else begin
-				next_state = SEND;
 			end
+			else begin
+        	        	bus_req = 0-ptr-1;
+                		bus_reqtag = {`SYSBUS_WRITE,`SYSBUS_MEMORY,8'b0};
+	                	bus_reqcyc = 1;
+                		if(bus_reqack) begin
+					next_ptr = ptr + 1;
+					if(ptr == 7) begin
+						next_state = BREAK;
+					end
+					else begin
+						next_state = SEND;
+					end
+				end
+			end
+		end
+		BREAK: begin
+			next_state = FETCH;
 		end
 	endcase
     end
