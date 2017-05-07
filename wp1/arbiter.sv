@@ -193,7 +193,8 @@ module arbiter
 		bus_reqcyc = 0;
 		bus_respack = 0;
 		_content = content;
-		end
+		respcyc0 = 0;
+		respcyc1 = 0;
 	   
 		case(state)
 			DRAMWREQ: begin
@@ -254,7 +255,7 @@ module arbiter
 					end
 				end
 			RESPOND:begin
-					//respond to processot
+					//respond to processor
 					if(bus_respcyc == 1) begin
 						bus_respack = 1;
 					end
