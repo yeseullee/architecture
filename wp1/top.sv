@@ -269,20 +269,12 @@ module top
             IF_cache_bus_respack = 0;
             IF_cache_bus_req = 64'h0;
             IF_cache_bus_reqtag = 0;
-            MEM_cache_bus_reqcyc = 0;
-            MEM_cache_bus_respack = 0;
-            MEM_cache_bus_req = 64'h0;
-            MEM_cache_bus_reqtag = 0;
         end
         else begin
             IF_arbiter_bus_reqcyc = 0;
             IF_arbiter_bus_respack = 0;
             IF_arbiter_bus_req = 64'h0;
             IF_arbiter_bus_reqtag = 0;
-            MEM_arbiter_bus_reqcyc = 0;
-            MEM_arbiter_bus_respack = 0;
-            MEM_arbiter_bus_req = 64'h0;
-            MEM_arbiter_bus_reqtag = 0;
         end
 
         //set IF wires (to registers)
@@ -411,6 +403,18 @@ module top
     end
 
     always_comb begin
+        if(cache == 1) begin
+            MEM_cache_bus_reqcyc = 0;
+            MEM_cache_bus_respack = 0;
+            MEM_cache_bus_req = 64'h0;
+            MEM_cache_bus_reqtag = 0;
+        end
+        else begin
+            MEM_arbiter_bus_reqcyc = 0;
+            MEM_arbiter_bus_respack = 0;
+            MEM_arbiter_bus_req = 64'h0;
+            MEM_arbiter_bus_reqtag = 0;
+        end
         if(DECODE_state == DECODE) begin
             _ID_instr = instr;
             _READ_state = READ;
