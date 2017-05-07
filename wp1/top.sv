@@ -583,8 +583,8 @@ module top
             //To write back to the register file.
             //There should be write signal.
             //TODO
-            _WB_instr = EX_instr;
-            next_state = GETINSTR;
+            _WB_instr = MEM_instr;
+            //next_state = GETINSTR;
         end
     end
 
