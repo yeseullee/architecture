@@ -71,8 +71,6 @@ module arbiter
 	logic [8:0] next_ptr;
 	logic channel;
 	logic _channel;
-	logic [1:0] has_ack;		//counter used to extend processor-side ack
-	logic [1:0] _has_ack;
 
 
 	//NOTE: multiple always comb blocks used to keep verilator happy
@@ -195,11 +193,6 @@ module arbiter
 		bus_reqcyc = 0;
 		bus_respack = 0;
 		_content = content;
-
-		//maintain the has_ack counter
-		_has_ack = has_ack;
-		if(has_ack != 0) begin
-			_has_ack = has_ack - 1;
 		end
 	   
 		case(state)
@@ -270,9 +263,6 @@ module arbiter
 						respcyc0 = 1;
 						resptag0 = req_tag;
 						resp0 = content[64*ptr +: 64];
-						if(respack0 == 1) begin
-							has_ack == 2;
-						end
 					end
 
 					//channel 1
@@ -280,9 +270,6 @@ module arbiter
 						respcyc1 = 1;
 						resptag1 = req_tag;
 						resp1 = content[64*ptr +: 64];
-						if(respack1 == 1) begin
-							_has_ack == 2;
-						end
 					end
 
 					//transition to next state
@@ -299,7 +286,7 @@ module arbiter
 
 					//channel 0
 					if(channel == 0) begin
-						if(has_ack == 1) begin
+						if(respack0 == 1) begin
 							next_ptr = ptr + 1;
 							if(ptr == 7) begin
 								next_state = ACCEPT;
@@ -315,7 +302,7 @@ module arbiter
 
 					//channel 1
 					else if(channel == 1) begin
-						if(has_ack == 1) begin
+						if(respack1 == 1) begin
 							next_ptr = ptr + 1;
 							if(ptr == 7) begin
 								next_state = ACCEPT;
@@ -339,7 +326,6 @@ module arbiter
 			req_tag <= 0;
 			content <= 0;
 			ptr <= 0;
-			has_ack <= 0;
 		end
 
 		//write values from wires to register
@@ -349,7 +335,6 @@ module arbiter
 		content <= _content;
 		ptr <= next_ptr;
 		channel <= _channel;
-		has_ack <= _has_ack;
 	end
 
 endmodule
