@@ -1,5 +1,5 @@
 `include "Sysbus.defs"
-module direct_cache
+module cache
 	#(
 		//Memory bus constants
 		BUS_DATA_WIDTH = 64,
@@ -33,7 +33,7 @@ module direct_cache
 		//set cache variables
 		SET_CACHE_TAG = BUS_DATA_WIDTH - OFFSET - SET_CACHE_INDEX,
 		SET_CACHE_INDEX = 4,	//index = log2(16) (# sets in the cache)
-		NUM_CACHE_SETS = 16,
+		NUM_CACHE_SETS = 16
 	)
 	(
 		input  clk,
@@ -75,7 +75,7 @@ module direct_cache
 	logic [DATA_LENGTH-1:0] _content;
 
 	//cache management-related variables
-	logic cache_type = 0; //set to 0 for direct, 1 for set
+	logic cache_type = 1; //set to 0 for direct, 1 for set
 	logic [OFFSET-1:0] offset;
 	logic [NUM_CACHE_LINES-1:0] dirty_bits;
 	logic [NUM_CACHE_LINES-1:0] _dirty_bits;
@@ -91,13 +91,13 @@ module direct_cache
 	logic [DIR_CACHE_TAG-1:0] _dir_cache_tags[NUM_CACHE_LINES-1:0];
 
 	//set cache management variables
-	logic [CACHE_TAG-1:0] set_tag;
-	logic [CACHE_INDEX-1:0] set_index;
-	logic [CACHE_INDEX:0] update_index; //change to [31:0] if range issues pop up
+	logic [SET_CACHE_TAG-1:0] set_tag;
+	logic [SET_CACHE_INDEX-1:0] set_index;
+	logic [SET_CACHE_INDEX:0] update_index; //change to [31:0] if range issues pop up
 	logic [NUM_CACHE_LINES-1:0] recent_bits;
 	logic [NUM_CACHE_LINES-1:0] _recent_bits;
-	logic [CACHE_TAG-1:0] set_cache_tags[NUM_CACHE_LINES-1:0];
-	logic [CACHE_TAG-1:0] _set_cache_tags[NUM_CACHE_LINES-1:0];
+	logic [SET_CACHE_TAG-1:0] set_cache_tags[NUM_CACHE_LINES-1:0];
+	logic [SET_CACHE_TAG-1:0] _set_cache_tags[NUM_CACHE_LINES-1:0];
 
 	//variables used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
 	logic [8:0] ptr;
@@ -340,7 +340,7 @@ module direct_cache
 						end
 
 						_valid_bits[update_index] = 1;
-						_set_cache_tags[update_index] = tag;
+						_set_cache_tags[update_index] = set_tag;
 						_cache_data[update_index] = content;
 
 						//set the recent bits
