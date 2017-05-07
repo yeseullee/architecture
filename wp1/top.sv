@@ -165,7 +165,7 @@ module top
     logic MEM_cache_bus_reqack;
     logic [BUS_DATA_WIDTH-1:0] MEM_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] MEM_cache_bus_resptag;
- 
+
     /*direct_cache IF_cache_mod (
     //set_cache IF_cache_mod (
         //INPUTS
@@ -235,7 +235,7 @@ module top
 
     
     // FOR FETCHING INSTRUCTIONS
-    //OUTPUT   
+    //OUTPUT
     logic  bus_reqcyc_0; //I need to set to 1 for requesting to read instr
     logic  bus_respack_0; //I acknowledge the response by setting it to 1.
     logic  [BUS_DATA_WIDTH-1:0] bus_req_0;//the address I wanna read
@@ -262,16 +262,28 @@ module top
     logic [3:0] _MEM_state;
     logic [3:0] WRITEBACK_state;
     logic [3:0] _WRITEBACK_state;
-    
+
     always_comb begin
-        IF_arbiter_bus_reqcyc = 0;
-        IF_arbiter_bus_respack = 0;
-        IF_arbiter_bus_req = 64'h0;
-        IF_arbiter_bus_reqtag = 0;
-        MEM_arbiter_bus_reqcyc = 0;
-        MEM_arbiter_bus_respack = 0;
-        MEM_arbiter_bus_req = 64'h0;
-        MEM_arbiter_bus_reqtag = 0;
+        if(cache == 1) begin
+            IF_cache_bus_reqcyc = 0;
+            IF_cache_bus_respack = 0;
+            IF_cache_bus_req = 64'h0;
+            IF_cache_bus_reqtag = 0;
+            MEM_cache_bus_reqcyc = 0;
+            MEM_cache_bus_respack = 0;
+            MEM_cache_bus_req = 64'h0;
+            MEM_cache_bus_reqtag = 0;
+        end
+        else begin
+            IF_arbiter_bus_reqcyc = 0;
+            IF_arbiter_bus_respack = 0;
+            IF_arbiter_bus_req = 64'h0;
+            IF_arbiter_bus_reqtag = 0;
+            MEM_arbiter_bus_reqcyc = 0;
+            MEM_arbiter_bus_respack = 0;
+            MEM_arbiter_bus_req = 64'h0;
+            MEM_arbiter_bus_reqtag = 0;
+        end
 
         //set IF wires (to registers)
         _pc = pc;
@@ -284,83 +296,120 @@ module top
 
         case(state)
             INIT: begin
-                  if(!reset) begin
-                    next_state = FETCH;
-                  end
-                  else begin
-                    next_state = INIT;
-                  end
+                    if(!reset) begin
+                        next_state = FETCH;
+                    end
+                    else begin
+                        next_state = INIT;
+                    end
                 end
             FETCH: begin
-                  //CACHE
-                  IF_arbiter_bus_reqcyc = 1;
-                  IF_arbiter_bus_req = pc;
-                  IF_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                    if(cache == 1) begin
+                        IF_cache_bus_reqcyc = 1;
+                        IF_cache_bus_req = pc;
+                        IF_cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
 
-                  if(!IF_arbiter_bus_reqack) begin
-                      next_state = FETCH;
-                  end               
-                  else begin
-                      next_state = WAIT;
-                  end
+                        if(!IF_cache_bus_reqack) begin
+                            next_state = FETCH;
+                        end               
+                        else begin
+                            next_state = WAIT;
+                        end
+                    end
+                    else begin
+                        IF_arbiter_bus_reqcyc = 1;
+                        IF_arbiter_bus_req = pc;
+                        IF_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+
+                        if(!IF_arbiter_bus_reqack) begin
+                            next_state = FETCH;
+                        end               
+                        else begin
+                            next_state = WAIT;
+                        end
+                    end
                 end
-
             WAIT:begin
                     // Getting all 16 instrs (before, we got 2 * 8 times)
-                    if(fetch_count == 16) begin
-                      IF_arbiter_bus_respack = 1;
-                      // For the first instr after fetch.
-                      next_state = GETINSTR;
-                      _instr_index = 0;
-                      _fetch_count = 0;
-                    end
-                    //CACHE
-                    else if(IF_arbiter_bus_respcyc == 1) begin
-                      _instrlist[fetch_count] = IF_arbiter_bus_resp[31:0];
-                      _instrlist[fetch_count + 1] = IF_arbiter_bus_resp[63:32];
+                    if(cache == 0) begin
+                        if(fetch_count == 16) begin
+                            IF_cache_bus_respack = 1;
+                            // For the first instr after fetch.
+                            next_state = GETINSTR;
+                            _instr_index = 0;
+                            _fetch_count = 0;
+                        end
+                        else if(IF_cache_bus_respcyc == 1) begin
+                            _instrlist[fetch_count] = IF_cache_bus_resp[31:0];
+                            _instrlist[fetch_count + 1] = IF_cache_bus_resp[63:32];
 
-                      // For next time,
-                      if(IF_arbiter_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]} || IF_arbiter_bus_resp == 0) begin
-                        _fetch_count = fetch_count + 2;
-                      end
-                      IF_arbiter_bus_respack = 1;
-                      next_state = WAIT;
-                    end else begin
-                      next_state = WAIT;
+                            // For next time,
+                            if(IF_cache_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]} || IF_cache_bus_resp == 0) begin
+                                _fetch_count = fetch_count + 2;
+                            end
+                            IF_cache_bus_respack = 1;
+                            next_state = WAIT;
+                        end else begin
+                            next_state = WAIT;
+                        end
                     end
+                    else begin
+                        if(fetch_count == 16) begin
+                            IF_arbiter_bus_respack = 1;
+                            // For the first instr after fetch.
+                            next_state = GETINSTR;
+                            _instr_index = 0;
+                            _fetch_count = 0;
+                        end
+                        else if(IF_arbiter_bus_respcyc == 1) begin
+                            _instrlist[fetch_count] = IF_arbiter_bus_resp[31:0];
+                            _instrlist[fetch_count + 1] = IF_arbiter_bus_resp[63:32];
 
+                            // For next time,
+                            if(IF_arbiter_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]} || IF_arbiter_bus_resp == 0) begin
+                                _fetch_count = fetch_count + 2;
+                            end
+                            IF_arbiter_bus_respack = 1;
+                            next_state = WAIT;
+                        end else begin
+                            next_state = WAIT;
+                        end
+                    end
                  end
             GETINSTR: begin
-                    //CACHE
                     if(instr_index == 0) begin
+                        if(cache == 1) begin
+                            IF_cache_bus_respack = 1;
+                        end
+                        else begin
                         IF_arbiter_bus_respack = 1;
+                        end
                     end
 
                     //NEED MORE INSTR (OUT OF INDEX)
                     if(instr_index >= 16) begin
-                      next_state = FETCH;
-                      _pc = pc + 64;
+                        next_state = FETCH;
+                        _pc = pc + 64;
                     end else begin 
 
-                      //GOOD FOR NOW
-                      _instr = instrlist[instr_index];
-                      //Get more instructions
-                       next_state = GETINSTR;
-                       _instr_index = instr_index + 1;
-                       //Start decode.
-                       _DECODE_state = DECODE;
+                        //GOOD FOR NOW
+                        _instr = instrlist[instr_index];
+                        //Get more instructions
+                        next_state = GETINSTR;
+                        _instr_index = instr_index + 1;
+                        //Start decode.
+                        _DECODE_state = DECODE;
 
-                     //THE END
-                      if(_instr == 32'b0) begin
-                        next_state = IDLE;
-                      end
+                        //THE END
+                        if(_instr == 32'b0) begin
+                            next_state = IDLE;
+                        end
                     end
-                  end
+                end
             IDLE: $finish;
-      endcase
-    
+        endcase
     end
-    
+
     always_comb begin
         if(DECODE_state == DECODE) begin
             _ID_instr = instr;
@@ -379,7 +428,6 @@ module top
             _RD_mem_size = ID_mem_size;
 
             _EXECUTE_state = EXECUTE;
-                      
         end
         if(EXECUTE_state == EXECUTE) begin
             //Passing these as registers to WB.
@@ -405,90 +453,135 @@ module top
 
             //read from memory if store or load, go immediately to writeback otherwise
             if(_MEM_access != `MEM_NO_ACCESS) begin
-              case(MEM_status)
-                0: begin  //make request to memory to read
-                    MEM_arbiter_bus_reqcyc = 1;
-                    MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                    MEM_arbiter_bus_req = _MEM_alu_result - (_MEM_alu_result % 512); //TODO: find and floor requested address
-                    if(MEM_arbiter_bus_reqack == 1) begin
-                      _MEM_status = 1;
-                      _MEM_read_value = 0;
-                      MEM_next_ptr = 0;
-                    end
-                  end
-                1: begin  //receive response
-                    if(MEM_arbiter_bus_respcyc == 1) begin
-                      _MEM_read_value[64*MEM_ptr +: 63] = MEM_arbiter_bus_resp;
-                      MEM_arbiter_bus_respack = 1;
-                      MEM_next_ptr = MEM_ptr + 1;
-                      if(MEM_ptr == 7) begin
-                        MEM_next_ptr = _MEM_alu_result % 512;
-                        _MEM_status = 2;
-                      end
-                    end
-                  end
-                2: begin  //manipulate read value accordingly and send request to write if needed
-                    if(_MEM_access == `MEM_READ) begin //load
-                      //Tload value from MEM_read_value to _MEM_value
-                      case(_MEM_size)
-                        `MEM_BYTE: _MEM_value = {{56{MEM_read_value[MEM_ptr + 7]}}, MEM_read_value[MEM_ptr +: 8]};
-                        `MEM_HALF: _MEM_value = {{48{MEM_read_value[MEM_ptr + 15]}}, MEM_read_value[MEM_ptr +: 16]};
-                        `MEM_WORD: _MEM_value = {{32{MEM_read_value[MEM_ptr + 31]}}, MEM_read_value[MEM_ptr +: 32]};
-                        `MEM_DOUBLE: _MEM_value = {MEM_read_value[MEM_ptr +: 64]};
-                        `MEM_US_BYTE: _MEM_value = {56'b0, MEM_read_value[MEM_ptr +: 8]};
-                        `MEM_US_HALF: _MEM_value = {48'b0, MEM_read_value[MEM_ptr +: 16]};
-                        `MEM_US_WORD: _MEM_value = {32'b0, MEM_read_value[MEM_ptr +: 32]};
-                      endcase
-                      MEM_next_ptr = 0;
-                      _MEM_status = 0;
-                      _WRITEBACK_state = WRITEBACK; 
-                    end
-                    else if(_MEM_access == `MEM_WRITE) begin //store
-                      //modify _MEM_read_value using _MEM_alu_result
-                      case(_MEM_size)
-                        `MEM_BYTE: _MEM_read_value[MEM_ptr +: 8] = _MEM_rs2_val[7:0];
-                        `MEM_HALF: _MEM_read_value[MEM_ptr +: 16] = _MEM_rs2_val[15:0];
-                        `MEM_WORD: _MEM_read_value[MEM_ptr +: 32] = _MEM_rs2_val[31:0];
-                        `MEM_DOUBLE: _MEM_read_value[MEM_ptr +: 64] = _MEM_rs2_val;
-                      endcase
-                      //request to write to memory
-                      MEM_arbiter_bus_reqcyc = 1;
-                      MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                      MEM_arbiter_bus_req = 64'h0; //TODO: find and floor requested address
-                      _MEM_status = 3;
-                    end
-                  end
-                3: begin //write to memory
-                    if(MEM_arbiter_bus_reqack == 1) begin
-                      MEM_arbiter_bus_reqcyc = 1;
-                      MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                      MEM_arbiter_bus_req = MEM_read_value[64*MEM_ptr +: 63];
-                      MEM_next_ptr = MEM_ptr + 1;
-                      if(MEM_ptr == 7) begin
-                        MEM_next_ptr = 0;
-                        _MEM_status = 0;
-                        _WRITEBACK_state = WRITEBACK; 
-                      end
-                    end
-                  end
-              endcase
+                case(MEM_status)
+                    0: begin  //make request to memory to read
+                            if(cache == 1) 
+                                MEM_cache_bus_reqcyc = 1;
+                                MEM_cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                                MEM_cache_bus_req = _MEM_alu_result - (_MEM_alu_result % 512); //TODO: find and floor requested address
+                                if(MEM_cache_bus_reqack == 1) begin
+                                    _MEM_status = 1;
+                                    _MEM_read_value = 0;
+                                    MEM_next_ptr = 0;
+                                end
+                            end
+                            else begin
+                                MEM_arbiter_bus_reqcyc = 1;
+                                MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                                MEM_arbiter_bus_req = _MEM_alu_result - (_MEM_alu_result % 512); //TODO: find and floor requested address
+                                if(MEM_arbiter_bus_reqack == 1) begin
+                                    _MEM_status = 1;
+                                    _MEM_read_value = 0;
+                                    MEM_next_ptr = 0;
+                                end
+                            end
+                        end
+                    1: begin  //receive response
+                            if(cache == 1) begin
+                                if(MEM_cache_bus_respcyc == 1) begin
+                                    _MEM_read_value[64*MEM_ptr +: 63] = MEM_cache_bus_resp;
+                                    MEM_cache_bus_respack = 1;
+                                    MEM_next_ptr = MEM_ptr + 1;
+                                    if(MEM_ptr == 7) begin
+                                        MEM_next_ptr = _MEM_alu_result % 512;
+                                        _MEM_status = 2;
+                                    end
+                                end
+                            end
+                            else begin
+                                if(MEM_arbiter_bus_respcyc == 1) begin
+                                    _MEM_read_value[64*MEM_ptr +: 63] = MEM_arbiter_bus_resp;
+                                    MEM_arbiter_bus_respack = 1;
+                                    MEM_next_ptr = MEM_ptr + 1;
+                                    if(MEM_ptr == 7) begin
+                                        MEM_next_ptr = _MEM_alu_result % 512;
+                                        _MEM_status = 2;
+                                    end
+                                end
+                            end
+                        end
+                    2: begin  //manipulate read value accordingly and send request to write if needed
+                            if(_MEM_access == `MEM_READ) begin //load
+                                //Tload value from MEM_read_value to _MEM_value
+                                case(_MEM_size)
+                                        `MEM_BYTE: _MEM_value = {{56{MEM_read_value[MEM_ptr + 7]}}, MEM_read_value[MEM_ptr +: 8]};
+                                        `MEM_HALF: _MEM_value = {{48{MEM_read_value[MEM_ptr + 15]}}, MEM_read_value[MEM_ptr +: 16]};
+                                        `MEM_WORD: _MEM_value = {{32{MEM_read_value[MEM_ptr + 31]}}, MEM_read_value[MEM_ptr +: 32]};
+                                        `MEM_DOUBLE: _MEM_value = {MEM_read_value[MEM_ptr +: 64]};
+                                        `MEM_US_BYTE: _MEM_value = {56'b0, MEM_read_value[MEM_ptr +: 8]};
+                                        `MEM_US_HALF: _MEM_value = {48'b0, MEM_read_value[MEM_ptr +: 16]};
+                                        `MEM_US_WORD: _MEM_value = {32'b0, MEM_read_value[MEM_ptr +: 32]};
+                                endcase
+                                MEM_next_ptr = 0;
+                                _MEM_status = 0;
+                                _WRITEBACK_state = WRITEBACK; 
+                            end
+                            else if(_MEM_access == `MEM_WRITE) begin //store
+                                //modify _MEM_read_value using _MEM_alu_result
+                                case(_MEM_size)
+                                    `MEM_BYTE: _MEM_read_value[MEM_ptr +: 8] = _MEM_rs2_val[7:0];
+                                    `MEM_HALF: _MEM_read_value[MEM_ptr +: 16] = _MEM_rs2_val[15:0];
+                                    `MEM_WORD: _MEM_read_value[MEM_ptr +: 32] = _MEM_rs2_val[31:0];
+                                    `MEM_DOUBLE: _MEM_read_value[MEM_ptr +: 64] = _MEM_rs2_val;
+                                endcase
+                                //request to write to memory
+                                if(cache == 1) begin
+                                    MEM_cache_bus_reqcyc = 1;
+                                    MEM_cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                                    MEM_cache_bus_req = 64'h0; //TODO: find and floor requested address
+                                    _MEM_status = 3;
+                                end
+                                else begin
+                                    MEM_arbiter_bus_reqcyc = 1;
+                                    MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                                    MEM_arbiter_bus_req = 64'h0; //TODO: find and floor requested address
+                                    _MEM_status = 3;
+                                end
+                            end
+                        end
+                    3: begin //write to memory
+                            if(cache == 1) begin
+                                if(MEM_cache_bus_reqack == 1) begin
+                                    MEM_cache_bus_reqcyc = 1;
+                                    MEM_cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                                    MEM_cache_bus_req = MEM_read_value[64*MEM_ptr +: 63];
+                                    MEM_next_ptr = MEM_ptr + 1;
+                                    if(MEM_ptr == 7) begin
+                                        MEM_next_ptr = 0;
+                                        _MEM_status = 0;
+                                        _WRITEBACK_state = WRITEBACK; 
+                                    end
+                                end
+                            end
+                            else begin
+                                if(MEM_arbiter_bus_reqack == 1) begin
+                                    MEM_arbiter_bus_reqcyc = 1;
+                                    MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
+                                    MEM_arbiter_bus_req = MEM_read_value[64*MEM_ptr +: 63];
+                                    MEM_next_ptr = MEM_ptr + 1;
+                                    if(MEM_ptr == 7) begin
+                                        MEM_next_ptr = 0;
+                                        _MEM_status = 0;
+                                        _WRITEBACK_state = WRITEBACK; 
+                                    end
+                                end
+                            end
+                        end
+                endcase
             end
             else begin
-              _MEM_value = EX_alu_result;
-              //To get more instructions.
-            _WRITEBACK_state = WRITEBACK; 
+                _MEM_value = EX_alu_result;
+                //To get more instructions.
+            _WRITEBACK_state = WRITEBACK;
             end
         end
-
         if(WRITEBACK_state == WRITEBACK) begin
             //To write back to the register file.
-            //There should be write signal.   
-            //TODO      
+            //There should be write signal.
+            //TODO
             _WB_instr = EX_instr;
             next_state = GETINSTR;
-
         end
-            
     end
 
 
@@ -566,7 +659,7 @@ module top
         READ_state <= _READ_state;
         EXECUTE_state <= _EXECUTE_state;
         WRITEBACK_state <= _WRITEBACK_state;
-	MEM_state <= _MEM_state;
+        MEM_state <= _MEM_state;
 
         //set ID registers
         ID_rd <= _ID_rd;
@@ -614,7 +707,7 @@ module top
 
         //Set WB registers
         WB_instr <= _WB_instr;
-       
+    
     end
 
     initial begin
