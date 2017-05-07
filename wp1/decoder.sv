@@ -1,5 +1,6 @@
 `include "Sysbus.defs"
 `include "Alu.defs"
+`include "Mem.defs"
 module decoder
 	(
 	  input  clk,
@@ -16,7 +17,9 @@ module decoder
 	  output [10:0] alu_op,
 	  output [5:0] shamt,
 	  output reg_write,
-	  output [3:0] instr_type
+	  output [3:0] instr_type,
+	  output [1:0] mem_access,
+	  output [2:0] mem_size
 	);
 
 	logic [6:0] opcode = instruction[6:0];
@@ -51,6 +54,8 @@ module decoder
 		alu_op = 11'b0; //TODO:insert all applicable alu ops below //Note-to-shanshan: all zero means no alu now.
 		shamt = instruction[25:20]; //for i instruction type shifting
 		reg_write = 1'b0;
+		mem_access = `MEM_NO_ACCESS;
+		mem_size = `MEM_NO_SIZE;
 
 		//set immediate values
 		jal_imm = {{12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0};
@@ -175,22 +180,27 @@ module decoder
 						3'b000: begin
 								$display("sb $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_BYTE;
 							end
 						3'b001: begin
 								$display("sh $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_HALF;
 							end
 						3'b010: begin
 								$display("sw $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_WORD;
 							end
 						3'b011: begin
 								$display("sd $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_DOUBLE;
 							end
 					endcase
 					immediate = s_imm;
 					instr_type = `STYPE;
+					mem_access = `MEM_WRITE;
 				end
 			
 			//r_instr
@@ -403,35 +413,43 @@ module decoder
 						3'b000: begin
 								$display("lb $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_BYTE;
 							end
 						3'b001: begin
 								$display("lh $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_HALF;
 							end
 						3'b010: begin
 								$display("lw $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_WORD;
 							end
 						3'b011: begin
 								$display("ld $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_DOUBLE;
 							end
 						3'b100: begin
 								$display("lbu $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_US_BYTE;
 							end
 						3'b101: begin
 								$display("lhu $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_US_HALF;
 							end
 						3'b110: begin
 								$display("lwu $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = 4'b0;
+								mem_size = `MEM_US_WORD;
 							end
 					endcase
 					immediate = i_imm;
 					instr_type = `ITYPE;
 					reg_write = 1;
+					mem_access = `MEM_READ;
 				end
 			7'b0010011: begin //32I
 					immediate = i_imm;

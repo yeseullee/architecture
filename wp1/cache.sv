@@ -1,5 +1,5 @@
 `include "Sysbus.defs"
-module set_cache //2-way set associative cache
+module cache
 	#(
 		//Memory bus constants
 		BUS_DATA_WIDTH = 64,
@@ -22,12 +22,18 @@ module set_cache //2-way set associative cache
 		DRAMWRT = 13,
 
 		//Cache constants
-		CACHE_TAG = BUS_DATA_WIDTH - OFFSET - CACHE_INDEX,
-		CACHE_INDEX = 4,	//index = log2(16) (# sets in the cache)
 		NUM_CACHE_LINES = 32,
-		NUM_CACHE_SETS = 16,
 		OFFSET = 6,			//offset = log2(64) (# addresses in cache line: 8 * 8 sets of 64 bits)
-		DATA_LENGTH = 512
+		DATA_LENGTH = 512,
+
+		//direct cache variables
+		DIR_CACHE_TAG = BUS_DATA_WIDTH - OFFSET - DIR_CACHE_INDEX,
+		DIR_CACHE_INDEX = 5,	//index = log2(32) (# sets in the cache)
+
+		//set cache variables
+		SET_CACHE_TAG = BUS_DATA_WIDTH - OFFSET - SET_CACHE_INDEX,
+		SET_CACHE_INDEX = 4,	//index = log2(16) (# sets in the cache)
+		NUM_CACHE_SETS = 16
 	)
 	(
 		input  clk,
@@ -69,20 +75,29 @@ module set_cache //2-way set associative cache
 	logic [DATA_LENGTH-1:0] _content;
 
 	//cache management-related variables
-	logic [CACHE_TAG-1:0] tag;
-	logic [CACHE_INDEX-1:0] index;
-	logic [CACHE_INDEX:0] update_index; //change to [31:0] if range issues pop up
+	logic cache_type = 1; //set to 0 for direct, 1 for set
 	logic [OFFSET-1:0] offset;
 	logic [NUM_CACHE_LINES-1:0] dirty_bits;
 	logic [NUM_CACHE_LINES-1:0] _dirty_bits;
 	logic [NUM_CACHE_LINES-1:0] valid_bits;
 	logic [NUM_CACHE_LINES-1:0] _valid_bits;
-	logic [NUM_CACHE_LINES-1:0] recent_bits;
-	logic [NUM_CACHE_LINES-1:0] _recent_bits;
-	logic [CACHE_TAG-1:0] cache_tags[NUM_CACHE_LINES-1:0];
-	logic [CACHE_TAG-1:0] _cache_tags[NUM_CACHE_LINES-1:0];
 	logic [DATA_LENGTH-1:0] cache_data[NUM_CACHE_LINES-1:0];
 	logic [DATA_LENGTH-1:0] _cache_data[NUM_CACHE_LINES-1:0];
+
+	//direct cache management variables
+	logic [DIR_CACHE_TAG-1:0] dir_tag;
+	logic [DIR_CACHE_INDEX-1:0] dir_index;
+	logic [DIR_CACHE_TAG-1:0] dir_cache_tags[NUM_CACHE_LINES-1:0];
+	logic [DIR_CACHE_TAG-1:0] _dir_cache_tags[NUM_CACHE_LINES-1:0];
+
+	//set cache management variables
+	logic [SET_CACHE_TAG-1:0] set_tag;
+	logic [SET_CACHE_INDEX-1:0] set_index;
+	logic [SET_CACHE_INDEX:0] update_index; //change to [31:0] if range issues pop up
+	logic [NUM_CACHE_LINES-1:0] recent_bits;
+	logic [NUM_CACHE_LINES-1:0] _recent_bits;
+	logic [SET_CACHE_TAG-1:0] set_cache_tags[NUM_CACHE_LINES-1:0];
+	logic [SET_CACHE_TAG-1:0] _set_cache_tags[NUM_CACHE_LINES-1:0];
 
 	//variables used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
 	logic [8:0] ptr;
@@ -130,7 +145,7 @@ module set_cache //2-way set associative cache
 		case(state)
 			ACKPROC: begin
 					p_bus_reqack = 1;
-					if(req_tag[12] == 0) begin
+					if(req_tag[12] == `SYSBUS_WRITE) begin
 						_content = 0;
 						next_state = READVAL;
 					end
@@ -160,40 +175,74 @@ module set_cache //2-way set associative cache
 		_content = content;
 		for(int i = 0; i < NUM_CACHE_LINES; i++) begin
 			_cache_data[i] = cache_data[i];
-			_cache_tags[i] = cache_tags[i];
+			_dir_cache_tags[i] = dir_cache_tags[i];
 		end
 		_valid_bits = valid_bits;
 		_dirty_bits = dirty_bits;
 		_recent_bits = recent_bits;
 	   
 		//extract tag, index, offset from address
-		tag = req_addr[63:63-CACHE_TAG+1];
-		index = req_addr[63-CACHE_TAG:OFFSET];
+		dir_tag = req_addr[63:63-DIR_CACHE_TAG+1];
+		dir_index = req_addr[63-DIR_CACHE_TAG:OFFSET];
+		set_tag = req_addr[63:63-DIR_CACHE_TAG+1];
+		set_index = req_addr[63-DIR_CACHE_TAG:OFFSET];
 		offset = req_addr[OFFSET-1:0];
 	   
 		case(state)
 			LOOKUP: begin
 					//compare to existing cache and set next_state and _content respectively
-					next_state = DRAMRD;
-					_content = 0;
-					for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
-						if(valid_bits[(2*index)+i] == 1) begin
-							if(cache_tags[(2*index)+i] == tag) begin
+					if(cache_type == 0) begin //direct cache
+						if(valid_bits[dir_index] == 1) begin
+							if(dir_cache_tags[dir_index] == dir_tag) begin
 
 								//cache hit on write (invalidate data)
-								if(req_tag[12] == 0) begin
-									_valid_bits[(2*index)+i] = 0;
+								if(req_tag[12] == `SYSBUS_WRITE) begin
+									_valid_bits[dir_index] = 0;
 									next_state = UPDATE;
 								end
 
 								//cache hit on read
 								else begin
 									next_state = RESPOND;
-									_content = cache_data[(2*index)+i];
+									_content = cache_data[dir_index];
 								end
+							end
 
-								//cache hit; break out of loop
-								break;
+							else begin
+								//cache miss
+								next_state = DRAMRD;
+								_content = 0;
+							end
+						end
+
+						else begin
+							//cache miss
+							next_state = DRAMRD;
+							_content = 0;
+						end
+					end
+					else begin //set cache
+						next_state = DRAMRD;
+						_content = 0;
+						for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
+							if(valid_bits[(2*set_index)+i] == 1) begin
+								if(set_cache_tags[(2*set_index)+i] == set_tag) begin
+
+									//cache hit on write (invalidate data)
+									if(req_tag[12] == 0) begin
+										_valid_bits[(2*set_index)+i] = 0;
+										next_state = UPDATE;
+									end
+
+									//cache hit on read
+									else begin
+										next_state = RESPOND;
+										_content = cache_data[(2*set_index)+i];
+									end
+
+									//cache hit; break out of loop
+									break;
+								end
 							end
 						end
 					end
@@ -235,50 +284,73 @@ module set_cache //2-way set associative cache
 				end
 			UPDATE: begin
 					//insert the new block into the cache
-					m_bus_respack = 1;
-					update_index = -1;
-
-					//find location
-					for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
-						//check for valid bit == 0
-						if(valid_bits[(2*index)+i] == 0) begin
-							update_index = (2*index) + i;
-							break;
-						end
-						//if valid == 0 not found, replace older line in set
-						else if((update_index == -1) && (recent_bits[(2*index)+i] == 0)) begin
-							update_index = (2*index) + i;
-							break;
-						end
-					end
-
-					//replace the cache block as needed
-					if(req_tag[12] == 0) begin //cache write
-						_dirty_bits[update_index] = 1;
-						if(valid_bits[update_index] == 1 && dirty_bits[update_index] == 1) begin
-							next_state = DRAMWREQ;
-							_content = cache_data[update_index];
+					if(cache_type == 0) begin //direct cache
+						m_bus_respack = 1;
+						if(req_tag[12] == 0) begin
+							_dirty_bits[dir_index] = 1;
+							if(valid_bits[dir_index] == 1 && dirty_bits[dir_index] == 1) begin
+								next_state = DRAMWREQ;
+								_content = cache_data[dir_index];
+							end
+							else begin
+								next_state = ACCEPT;
+							end
 						end
 						else begin
-							next_state = ACCEPT;
+							_dirty_bits[dir_index] = 0;
+							next_state = RESPOND;
 						end
-					end
-					else begin
-						_dirty_bits[update_index] = 0;
-						next_state = RESPOND;
-					end
 
-					_valid_bits[update_index] = 1;
-					_cache_tags[update_index] = tag;
-					_cache_data[update_index] = content;
+						_valid_bits[dir_index] = 1;
+						_dir_cache_tags[dir_index] = dir_tag;
+						_cache_data[dir_index] = content;
+					end
+					else begin //set cache
+						m_bus_respack = 1;
+						update_index = -1;
 
-					//set the recent bits
-					for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
-						if((2*index) + i == update_index) begin
-							_recent_bits[(2*index)+i] = 1;
+						//find location
+						for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
+							//check for valid bit == 0
+							if(valid_bits[(2*set_index)+i] == 0) begin
+								update_index = (2*set_index) + i;
+								break;
+							end
+							//if valid == 0 not found, replace older line in set
+							else if((update_index == -1) && (recent_bits[(2*set_index)+i] == 0)) begin
+								update_index = (2*set_index) + i;
+								break;
+							end
+						end
+
+						//replace the cache block as needed
+						if(req_tag[12] == 0) begin //cache write
+							_dirty_bits[update_index] = 1;
+							if(valid_bits[update_index] == 1 && dirty_bits[update_index] == 1) begin
+								next_state = DRAMWREQ;
+								_content = cache_data[update_index];
+							end
+							else begin
+								next_state = ACCEPT;
+							end
 						end
 						else begin
-							_recent_bits[(2*index)+i] = 0;
+							_dirty_bits[update_index] = 0;
+							next_state = RESPOND;
+						end
+
+						_valid_bits[update_index] = 1;
+						_set_cache_tags[update_index] = set_tag;
+						_cache_data[update_index] = content;
+
+						//set the recent bits
+						for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
+							if((2*set_index) + i == update_index) begin
+								_recent_bits[(2*set_index)+i] = 1;
+							end
+							else begin
+								_recent_bits[(2*set_index)+i] = 0;
+							end
 						end
 					end
 				end
@@ -307,8 +379,13 @@ module set_cache //2-way set associative cache
 						end
 					end
 				end
+		endcase
+	end
+
+	//respond to processor: RESPOND
+	always_comb begin
+		case(state)
 			RESPOND:begin
-					//respond to processor
 					p_bus_respcyc = 1;
 					p_bus_resp = content[64*ptr +: 64];
 					p_bus_resptag = req_tag;
@@ -316,8 +393,9 @@ module set_cache //2-way set associative cache
 					next_state = RESPACK;
 				end
 			SETRESPZ: begin
-					p_bus_respcyc = 0;
+					//third state solely to keep verilator happy
 					next_ptr = ptr + 1;
+					p_bus_respcyc = 0;
 					if(ptr == 7) begin
 						next_state = ACCEPT;
 					end
@@ -354,7 +432,8 @@ module set_cache //2-way set associative cache
 			recent_bits <= 0;
 			for(int i = 0; i < NUM_CACHE_LINES; i++) begin
 				cache_data[i] <= 0;
-				cache_tags[i] <= 0;
+				dir_cache_tags[i] <= 0;
+				set_cache_tags[i] <= 0;
 			end
 		end
 
@@ -369,7 +448,8 @@ module set_cache //2-way set associative cache
 		recent_bits <= _recent_bits;
 		for(int i = 0; i < NUM_CACHE_LINES; i++) begin
 			cache_data[i] <= _cache_data[i];
-			cache_tags[i] <= _cache_tags[i];
+			dir_cache_tags[i] <= _dir_cache_tags[i];
+			set_cache_tags[i] <= _set_cache_tags[i];
 		end
 	end
 
