@@ -17,8 +17,9 @@ module direct_cache
 		UPDATE = 8,
 		RESPOND = 9,
 		RESPACK = 10,
-		DRAMWREQ = 11,
-		DRAMWRT = 12,
+		SETRESPZ = 11,
+		DRAMWREQ = 12,
+		DRAMWRT = 13,
 
 		//Cache constants
 		CACHE_TAG = BUS_DATA_WIDTH - OFFSET - CACHE_INDEX,
@@ -283,7 +284,6 @@ module direct_cache
 
 	//respond to processor: RESPOND
 	always_comb begin
-		p_bus_respcyc = 0;
 		case(state)
 			RESPOND:begin
 					p_bus_respcyc = 1;
@@ -291,6 +291,17 @@ module direct_cache
 					p_bus_resptag = req_tag;
 					next_ptr = ptr;
 					next_state = RESPACK;
+				end
+			SETRESPZ: begin
+					//third state solely to keep verilator happy
+					next_ptr = ptr + 1;
+					p_bus_respcyc = 0;
+					if(ptr == 7) begin
+						next_state = ACCEPT;
+					end
+					else begin
+						next_state = RESPOND;
+					end
 				end
 		endcase
 	end
@@ -300,13 +311,7 @@ module direct_cache
 		case(state)
 			RESPACK: begin
 					if(p_bus_respack == 1) begin
-						next_ptr = ptr + 1;
-						if(ptr == 7) begin
-							next_state = ACCEPT;
-						end
-						else begin
-							next_state = RESPOND;
-						end
+						next_state = SETRESPZ;
 					end
 					else begin
 						next_state = RESPACK;
