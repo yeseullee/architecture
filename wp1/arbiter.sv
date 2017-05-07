@@ -21,7 +21,8 @@ module arbiter
 		DRAMRD = 7,
 		RECEIVE = 8,
 		RESPOND = 9,
-		RESPACK = 10
+		RESPACK = 10,
+		SETRESPZ = 11
 	)
 	(
 		input  clk,
@@ -86,7 +87,7 @@ module arbiter
 				end
 			ACCEPT: begin
 					//wait for requests from the processor
-
+					_content = 0;
 					//receiving requeston on channel 0
 					if(reqcyc0 == 1) begin
 						_req_addr = req0;
@@ -193,8 +194,6 @@ module arbiter
 		bus_reqcyc = 0;
 		bus_respack = 0;
 		_content = content;
-		respcyc0 = 0;
-		respcyc1 = 0;
 	   
 		case(state)
 			DRAMWREQ: begin
@@ -277,6 +276,17 @@ module arbiter
 					next_ptr = ptr;
 					next_state = RESPACK;
 				end
+			SETRESPZ: begin
+					respcyc0 = 0;
+					respcyc1 = 0;
+					next_ptr = ptr + 1;
+					if (ptr == 7) begin
+						next_state = ACCEPT;
+					end
+					else begin
+						next_state = RESPOND;
+					end
+				end
 		endcase
 	end
 
@@ -284,37 +294,11 @@ module arbiter
 	always_comb begin
 		case(state)
 			RESPACK: begin
-
-					//channel 0
-					if(channel == 0) begin
-						if(respack0 == 1) begin
-							next_ptr = ptr + 1;
-							if(ptr == 7) begin
-								next_state = ACCEPT;
-							end
-							else begin
-								next_state = RESPOND;
-							end
-						end
-						else begin
-							next_state = RESPACK;
-						end
+					if(respack0 == 1 || respack1 == 1) begin
+						next_state = SETRESPZ;
 					end
-
-					//channel 1
-					else if(channel == 1) begin
-						if(respack1 == 1) begin
-							next_ptr = ptr + 1;
-							if(ptr == 7) begin
-								next_state = ACCEPT;
-							end
-							else begin
-								next_state = RESPOND;
-							end
-						end
-						else begin
-							next_state = RESPACK;
-						end
+					else begin
+						next_state = RESPACK;
 					end
 				end
 		endcase

@@ -307,24 +307,24 @@ module top
 
             WAIT:begin
                     // Getting all 16 instrs (before, we got 2 * 8 times)
+                    if(fetch_count == 16) begin
+                      IF_arbiter_bus_respack = 1;
+                      // For the first instr after fetch.
+                      next_state = GETINSTR;
+                      _instr_index = 0;
+                      _fetch_count = 0;
+                    end
                     //CACHE
-                    if(IF_arbiter_bus_respcyc == 1) begin
+                    else if(IF_arbiter_bus_respcyc == 1) begin
                       _instrlist[fetch_count] = IF_arbiter_bus_resp[31:0];
                       _instrlist[fetch_count + 1] = IF_arbiter_bus_resp[63:32];
 
                       // For next time,
-                      if(IF_arbiter_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]}) begin
+                      if(IF_arbiter_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]} || IF_arbiter_bus_resp == 0) begin
                         _fetch_count = fetch_count + 2;
                       end
                       IF_arbiter_bus_respack = 1;
-                      if(_fetch_count < 16) begin
-                        next_state = WAIT;
-                      end else begin
-                        // For the first instr after fetch.
-                        next_state = GETINSTR;
-                        _instr_index = 0;
-                        _fetch_count = 0;
-                      end
+                      next_state = WAIT;
                     end else begin
                       next_state = WAIT;
                     end
@@ -334,7 +334,6 @@ module top
                     //CACHE
                     if(instr_index == 0) begin
                         IF_arbiter_bus_respack = 1;
-			$display("This should print");
                     end
 
                     //NEED MORE INSTR (OUT OF INDEX)
