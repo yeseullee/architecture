@@ -499,7 +499,6 @@ module top
             _MEM_instr = EX_instr;
             _MEM_size = EX_mem_size;
             _MEM_rs2_val = EX_rs2_val;
-            _MEM_state = MEM;
 
             //read from memory if store or load, go immediately to writeback otherwise
             if(_MEM_access != `MEM_NO_ACCESS) begin
@@ -636,12 +635,12 @@ module top
             _WB_write_val = MEM_value;
             _WB_write_sig = MEM_write_sig;
 
-            if(stall_instr == _WB_instr && stallstate < WRITEBACK) begin
+            if((stall_instr == _WB_instr) && (stallstate < WRITEBACK)) begin
                 _stallstate = WRITEBACK;
             end
             
             //If WB wrote to the reg, then clear it on writinglist.
-            if(writinglist[MEM_write_reg][32] && writinglist[MEM_write_reg][31:0] == MEM_instr) begin
+            if(writinglist[MEM_write_reg][32] && (writinglist[MEM_write_reg][31:0] == MEM_instr)) begin
                 _writinglist[MEM_write_reg] = {32'b0};
             end
         end
