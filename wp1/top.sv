@@ -399,26 +399,28 @@ module top
                         end
                     end
 
-                    //NEED MORE INSTR (OUT OF INDEX)
-                    if(instr_index >= 16) begin
+                    //GOOD FOR NOW
+                    _instr = instrlist[instr_index];
+                    //Get more instructions
+                    next_state = GETINSTR;
+                    _instr_index = instr_index + 1;
+                    //Start decode.
+                    _DECODE_state = DECODE;
+                        
+                    //THE END
+                    if(_instr == 32'b0) begin
+                        next_state = IDLE;
+                    end else if(_instr_index >= 16) begin
                         next_state = FETCH;
                         _pc = pc + 64;
-                    end else begin 
-
-                        //GOOD FOR NOW
-                        _instr = instrlist[instr_index];
-                        //Get more instructions
-                        next_state = GETINSTR;
-                        _instr_index = instr_index + 1;
-                        //Start decode.
-                        _DECODE_state = DECODE;
-
-                        //THE END
-                        if(_instr == 32'b0) begin
-                            next_state = IDLE;
-                        end
                     end
-                end
+/*
+                    //STALL
+                    if(next_state < GETINSTR) begin
+                        _stall_instr = _instr;
+                        _stallstate = GETINSTR;
+                    end
+*/                end
             IDLE: $finish;
         endcase
     end
@@ -457,11 +459,17 @@ module top
 
             _EXECUTE_state = EXECUTE;
 
-            if(writinglist[ID_rs1][32] || writinglist[ID_rs2][32]) begin
+            //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
+            if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
                 _stall_instr = ID_instr;
                 _stallstate = READ;
-            end else begin
-                //If not stalling, set write reg in writinglist.
+            end else if (writinglist[ID_rs2][32] && writinglist[ID_rs2][31:0] != ID_instr) begin
+                _stall_instr = ID_instr;
+                _stallstate = READ;
+            end
+            //Otherwise, (not stalling)
+            else begin
+                //set write reg in writinglist.
                 if(ID_write_sig) begin
                     _writinglist[ID_rd] = {1'b1,ID_instr};
                 end
@@ -715,18 +723,20 @@ module top
         end
         //
 
-        //Either in the stall (GETINSTR) or it needs to get more instructions.
-        if(_stallstate < GETINSTR || next_state < GETINSTR) begin
+        //If it needs to get more instructions.
         //set IF registers
         state <= next_state;
         pc <= _pc;
-        instr <= _instr;
         fetch_count <= _fetch_count;
         instr_index <= _instr_index;
         
         for (int i = 0; i < 16; i++) begin
             instrlist[i] <= _instrlist[i];
         end
+
+        // if not in stall.
+        if(_stallstate < GETINSTR) begin
+        instr <= _instr;
         end
         
         DECODE_state <= _DECODE_state;
