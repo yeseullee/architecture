@@ -715,7 +715,7 @@ module top
         end
         //
 
-        if(_stallstate < GETINSTR) begin
+        if(_stallstate < GETINSTR || next_state < GETINSTR) begin
         //set IF registers
         state <= next_state;
         pc <= _pc;
