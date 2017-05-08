@@ -75,7 +75,7 @@ module cache
 	logic [DATA_LENGTH-1:0] _content;
 
 	//cache management-related variables
-	logic cache_type = 1; //set to 0 for direct, 1 for set
+	logic cache_type = 0; //set to 0 for direct, 1 for set
 	logic [OFFSET-1:0] offset;
 	logic [NUM_CACHE_LINES-1:0] dirty_bits;
 	logic [NUM_CACHE_LINES-1:0] _dirty_bits;
@@ -207,23 +207,37 @@ module cache
 									_content = cache_data[dir_index];
 								end
 							end
-
+//TODO:cache miss with writing should also go to UPDATE, since all 512 bits are given
+							else if(req_tag[12] == `SYSBUS_WRITE) begin
+								//cache miss on write
+								next_state = UPDATE;
+							end
 							else begin
-								//cache miss
+								//cache miss on read
 								next_state = DRAMRD;
 								_content = 0;
 							end
 						end
-
+						else if(req_tag[12] == `SYSBUS_WRITE) begin
+							//cache miss on write
+							next_state = UPDATE;
+						end
 						else begin
-							//cache miss
+							//cache miss on read
 							next_state = DRAMRD;
 							_content = 0;
 						end
 					end
 					else begin //set cache
-						next_state = DRAMRD;
-						_content = 0;
+						if(req_tag[12] == `SYSBUS_WRITE) begin
+							//cache miss on write
+							next_state = UPDATE;
+						end
+						else begin
+							//cache miss on read
+							next_state = DRAMRD;
+							_content = 0;
+						end
 						for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
 							if(valid_bits[(2*set_index)+i] == 1) begin
 								if(set_cache_tags[(2*set_index)+i] == set_tag) begin
@@ -242,6 +256,15 @@ module cache
 
 									//cache hit; break out of loop
 									break;
+								end
+								else if(req_tag[12] == `SYSBUS_WRITE) begin
+									//cache miss on write
+									next_state = UPDATE;
+								end
+								else begin
+									//cache miss on read
+									next_state = DRAMRD;
+									_content = 0;
 								end
 							end
 						end
