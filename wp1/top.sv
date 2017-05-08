@@ -40,12 +40,29 @@ module top
     logic [63:0] pc;
     logic [63:0] _pc;
 
+    //For stalls
+    reg [31:0] stall_instr;
+    reg [31:0] _stall_instr;
+    reg [3:0] stallstate;
+    reg [3:0] _stallstate;
+
+    //The index is the register.
+    // [32] = Is written to; [31:0] = The instruction writing. 
+    reg [32:0] writinglist[31:0];
+    reg [32:0] _writinglist[31:0];
+
     reg [3:0] state;
     reg [3:0] next_state;
     reg [31:0] instr;
     reg [31:0] _instr;
     reg [4:0] fetch_count;
     reg [4:0] _fetch_count;
+    reg getinstr_ready;
+    reg _getinstr_ready;
+    reg [31:0] instr_before_fetch;
+    reg [31:0] _instr_before_fetch;
+    reg [32:0] last_instr;
+    reg [32:0] _last_instr;
 
     //handle incoming instructions
     //setup inputs & outputs for all modules
@@ -96,6 +113,10 @@ module top
     logic [63:0] _RD_rs2_val;
     logic [31:0] RD_instr; //For debugging
     logic [31:0] _RD_instr;
+    logic [4:0] RD_rs1;
+    logic [4:0] _RD_rs1;
+    logic [4:0] RD_rs2;
+    logic [4:0] _RD_rs2;// up to here for debugging.
     logic [1:0] RD_mem_access;
     logic [1:0] _RD_mem_access;
     logic [2:0] RD_mem_size;
@@ -143,8 +164,14 @@ module top
     logic [511:0] _MEM_read_value;
 
     //WB pass along
-    logic [31:0] WB_instr;
+    logic [31:0] WB_instr; //For debuggin
     logic [31:0] _WB_instr;
+    logic [4:0] WB_write_reg; 
+    logic [4:0] _WB_write_reg;
+    logic [63:0] WB_write_val;
+    logic [63:0] _WB_write_val;
+    logic WB_write_sig;
+    logic _WB_write_sig;
 
     //cache variables
     logic cache = 1;  //set to 0 to remove the cache, and comment out cache initialization block
@@ -326,7 +353,7 @@ module top
                             IF_cache_bus_respack = 1;
                             // For the first instr after fetch.
                             next_state = GETINSTR;
-                            _instr_index = 0;
+                            _getinstr_ready = 1;
                             _fetch_count = 0;
                         end
                         else if(IF_cache_bus_respcyc == 1) begin
@@ -348,7 +375,7 @@ module top
                             IF_arbiter_bus_respack = 1;
                             // For the first instr after fetch.
                             next_state = GETINSTR;
-                            _instr_index = 0;
+                            _getinstr_ready = 1;
                             _fetch_count = 0;
                         end
                         else if(IF_arbiter_bus_respcyc == 1) begin
@@ -367,36 +394,43 @@ module top
                     end
                  end
             GETINSTR: begin
-                    if(instr_index == 0) begin
+                    if(getinstr_ready == 1) begin
                         if(cache == 1) begin
                             IF_cache_bus_respack = 1;
                         end
                         else begin
                         IF_arbiter_bus_respack = 1;
                         end
+                        //no more stall (if there was from fetching)
+                        _instr_before_fetch = 0;
+                        //set this bit to 0 until fetch again.
+                        _getinstr_ready = 0;
                     end
 
-                    //NEED MORE INSTR (OUT OF INDEX)
-                    if(instr_index >= 16) begin
+                    //GOOD FOR NOW
+                    _instr = instrlist[instr_index];
+                    //Get more instructions
+                    next_state = GETINSTR;
+                    _instr_index = instr_index + 1;
+                    //Start decode.
+                    _DECODE_state = DECODE;
+                        
+                    //THE END
+                    if(_instr == 32'b0) begin
+                        _last_instr = {1'b0,instr}; //The instr before this.
+                        next_state = IDLE;
+                    end else if(_instr_index >= 16) begin
                         next_state = FETCH;
                         _pc = pc + 64;
-                    end else begin 
+                        _instr_index = 0;
 
-                        //GOOD FOR NOW
-                        _instr = instrlist[instr_index];
-                        //Get more instructions
-                        next_state = GETINSTR;
-                        _instr_index = instr_index + 1;
-                        //Start decode.
-                        _DECODE_state = DECODE;
-
-                        //THE END
-                        if(_instr == 32'b0) begin
-                            next_state = IDLE;
-                        end
+                        //Stall
+                        _instr_before_fetch = _instr;
                     end
                 end
-            IDLE: $finish;
+            IDLE: if(last_instr[32] == 1) begin
+                      $finish;
+                  end
         endcase
     end
 
@@ -428,8 +462,34 @@ module top
             _RD_instr = ID_instr;
             _RD_mem_access = ID_mem_access;
             _RD_mem_size = ID_mem_size;
+           
+            _RD_rs1 = ID_rs1;
+            _RD_rs2 = ID_rs2;
 
             _EXECUTE_state = EXECUTE;
+
+            //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
+            if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
+                _stall_instr = ID_instr;
+                _stallstate = READ;
+            end else if (writinglist[ID_rs2][32] && writinglist[ID_rs2][31:0] != ID_instr) begin
+                _stall_instr = ID_instr;
+                _stallstate = READ;
+            end
+            //Otherwise, (not stalling)
+            else begin
+                //set write reg in writinglist.
+                if(ID_write_sig) begin
+                    _writinglist[ID_rd] = {1'b1,ID_instr};
+                end
+                //If both registers are free to go, then no more stalling.
+                //This checks if this stage initiated the stall.
+                if(stall_instr == ID_instr) begin
+                    _stallstate = 0;
+                    _stall_instr = 0;
+                end
+            end
+
         end
         if(EXECUTE_state == EXECUTE) begin
             //Passing these as registers to WB.
@@ -441,6 +501,11 @@ module top
 
             //To get more instructions.
             _MEM_state = MEM; 
+
+
+            if(stall_instr == _EX_instr && stallstate < EXECUTE) begin
+                _stallstate = EXECUTE;
+            end
         end
         if(MEM_state == MEM) begin
             //Passing these as registers to WB.
@@ -451,7 +516,6 @@ module top
             _MEM_instr = EX_instr;
             _MEM_size = EX_mem_size;
             _MEM_rs2_val = EX_rs2_val;
-            _MEM_state = MEM;
 
             //read from memory if store or load, go immediately to writeback otherwise
             if(_MEM_access != `MEM_NO_ACCESS) begin
@@ -573,16 +637,33 @@ module top
             end
             else begin
                 _MEM_value = EX_alu_result;
-                //To get more instructions.
-            _WRITEBACK_state = WRITEBACK;
+                _WRITEBACK_state = WRITEBACK;
+            end
+
+            if(stall_instr == _MEM_instr && stallstate < MEM) begin
+                _stallstate = MEM;
             end
         end
         if(WRITEBACK_state == WRITEBACK) begin
             //To write back to the register file.
             //There should be write signal.
-            //TODO
             _WB_instr = MEM_instr;
-            //next_state = GETINSTR;
+            _WB_write_reg = MEM_write_reg;
+            _WB_write_val = MEM_value;
+            _WB_write_sig = MEM_write_sig;
+
+            if((stall_instr == _WB_instr) && (stallstate < WRITEBACK)) begin
+                _stallstate = WRITEBACK;
+            end
+            
+            //If WB wrote to the reg, then clear it on writinglist.
+            if(writinglist[MEM_write_reg][32] && (writinglist[MEM_write_reg][31:0] == MEM_instr)) begin
+                _writinglist[MEM_write_reg] = {32'b0};
+            end
+
+            if(MEM_instr == last_instr[31:0])begin
+                _last_instr = {1'b1,MEM_instr};
+            end
         end
     end
 
@@ -611,9 +692,9 @@ module top
                 .clk(clk), .reset(reset), .rs1(ID_rs1), 
                 .rs2(ID_rs2),  
                 //Used Only From WB Stage.
-                .write_sig(EX_write_sig), 
-                .write_val(EX_alu_result), 
-                .write_reg(EX_write_reg),
+                .write_sig(MEM_write_sig), 
+                .write_val(MEM_value), 
+                .write_reg(MEM_write_reg),
 
                 //OUTPUTS
                 //Used Only From READ Stage.
@@ -648,15 +729,32 @@ module top
             end  
         end
 
+        // The only registers written to no matter what.
+        stallstate <= _stallstate;
+        stall_instr <= _stall_instr;
+        instr_before_fetch <= _instr_before_fetch;
+
+        for (int i = 0; i < 32; i++) begin
+            writinglist[i] <= _writinglist[i];
+        end
+        //
+
+        //If it needs to get more instructions.
         //set IF registers
         state <= next_state;
         pc <= _pc;
-        instr <= _instr;
         fetch_count <= _fetch_count;
-        instr_index <= _instr_index;
+        getinstr_ready <= _getinstr_ready;
+        last_instr <= _last_instr;
         
         for (int i = 0; i < 16; i++) begin
             instrlist[i] <= _instrlist[i];
+        end
+
+        // if not in stall.
+        if(_stallstate < GETINSTR) begin
+        instr <= _instr;
+        instr_index <= _instr_index;
         end
         
         DECODE_state <= _DECODE_state;
@@ -665,6 +763,7 @@ module top
         WRITEBACK_state <= _WRITEBACK_state;
         MEM_state <= _MEM_state;
 
+        if(_stallstate < DECODE) begin
         //set ID registers
         ID_rd <= _ID_rd;
         ID_rs1 <= _ID_rs1;
@@ -677,7 +776,9 @@ module top
         ID_instr <= _ID_instr;
         ID_mem_access <= _ID_mem_access;
         ID_mem_size <= _ID_mem_size;
+        end
 
+        if(_stallstate < READ) begin
         //set READ registers
         RD_immediate <= _RD_immediate;
         RD_alu_op <= _RD_alu_op;
@@ -691,6 +792,11 @@ module top
         RD_mem_access <= _RD_mem_access;
         RD_mem_size <= _RD_mem_size;
 
+        RD_rs1 <= _RD_rs1;
+        RD_rs2 <= _RD_rs2;
+        end
+
+        if(_stallstate < EXECUTE) begin
         //set EX registers
         EX_alu_result <= _EX_alu_result;
         EX_write_reg <= _EX_write_reg;
@@ -699,7 +805,11 @@ module top
         EX_mem_access <= _EX_mem_access;
         EX_mem_size <= _EX_mem_size;
         EX_rs2_val <= _EX_rs2_val;
+        end
 
+        // if not (in stall or it has the instruction which was before fetch)
+        // This is to block it from writing again and again..
+        if(_stallstate < MEM && instr_before_fetch != _MEM_instr) begin
         //set MEM registers
         MEM_write_reg <= _MEM_write_reg;
         MEM_value <= _MEM_value;
@@ -708,9 +818,15 @@ module top
         MEM_instr <= _MEM_instr;
         MEM_ptr <= MEM_next_ptr;
         MEM_read_value <= _MEM_read_value;
+        end
 
+        if(_stallstate < WRITEBACK && instr_before_fetch != _WB_instr) begin
         //Set WB registers
         WB_instr <= _WB_instr;
+        WB_write_reg <= _WB_write_reg;
+        WB_write_val <= _WB_write_val;
+        WB_write_sig <= _WB_write_sig;
+        end
     
     end
 

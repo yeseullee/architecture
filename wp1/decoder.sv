@@ -32,18 +32,18 @@ module decoder
 	logic signed [31:0] u_imm, sb_imm;
 	logic signed [31:0] i_imm, s_imm;
 
-	//code to ensure each instruction is decoded only once
+/*	//code to ensure each instruction is decoded only once
 	always_comb begin
 		if(prev_instr != instruction) begin
-			opcode = instruction[6:0];
+		//	opcode = instruction[6:0];
 			//$display("The following instruction is: %h", instruction);
 		end
 		else begin
-			opcode = 7'b0000000;
+		//	opcode = 7'b0000000;
 		end
 		prev_instr_wire = instruction;
 	end
-
+*/
 	//decoding happens here
 	always_comb begin
 		//set outputs
@@ -579,10 +579,10 @@ module decoder
 			7'b0000000: ;//$display("This instruction has been decoded before: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
 			default: $display("This instruction is not recognized: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
 		endcase
-		prev_instr_wire = instruction;
+		//prev_instr_wire = instruction;
 	end
 
 	always_ff @ (posedge clk) begin
-		prev_instr <= prev_instr_wire;
+		//prev_instr <= prev_instr_wire;
 	end
 endmodule
