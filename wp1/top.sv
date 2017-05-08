@@ -147,7 +147,7 @@ module top
     logic [31:0] _WB_instr;
 
     //cache variables
-    logic cache = 0;  //set to 0 to remove the cache, and comment out cache initialization block
+    logic cache = 1;  //set to 0 to remove the cache, and comment out cache initialization block
     logic IF_cache_bus_reqcyc;
     logic IF_cache_bus_respack;
     logic [BUS_DATA_WIDTH-1:0] IF_cache_bus_req;
@@ -166,8 +166,7 @@ module top
     logic [BUS_DATA_WIDTH-1:0] MEM_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] MEM_cache_bus_resptag;
 
-    /*//direct_cache IF_cache_mod (
-    set_cache IF_cache_mod (
+    cache IF_cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
         .p_bus_reqcyc(IF_cache_bus_reqcyc), .p_bus_req(IF_cache_bus_req), 
@@ -181,8 +180,7 @@ module top
         .m_bus_reqcyc(IF_arbiter_bus_reqcyc), .m_bus_req(IF_arbiter_bus_req),
         .m_bus_reqtag(IF_arbiter_bus_reqtag), .m_bus_respack(IF_arbiter_bus_respack)
     );
-    //direct_cache MEM_cache_mod (
-    set_cache MEM_cache_mod (
+    cache MEM_cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
         .p_bus_reqcyc(MEM_cache_bus_reqcyc), .p_bus_req(MEM_cache_bus_req), 
@@ -195,7 +193,7 @@ module top
         .p_bus_resp(MEM_cache_bus_resp), .p_bus_resptag(MEM_cache_bus_resptag),
         .m_bus_reqcyc(MEM_arbiter_bus_reqcyc), .m_bus_req(MEM_arbiter_bus_req),
         .m_bus_reqtag(MEM_arbiter_bus_reqtag), .m_bus_respack(MEM_arbiter_bus_respack)
-    );*/
+    );
 
 
     //arbiter variables
