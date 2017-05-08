@@ -17,7 +17,10 @@
 `define LESSU 11'd14
 `define SLTIU 11'd15
 
-`define GREATER 11'd16
+`define EQUAL 11'b16
+`define NEQ 11'b17
+`define GTE 11'd18
+`define GTEU 11'd19
 
 `define MULH 11'd20
 `define MULHU 11'd21
@@ -25,6 +28,7 @@
 
 `define DIVU 11'd23
 `define REMU 11'd24
+
 
 
 `define NOTYPE 4'd0

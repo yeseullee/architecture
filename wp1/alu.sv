@@ -119,6 +119,38 @@ module alu
 			    result = 0;
 			end
 		    end
+		`EQUAL:
+		    begin
+			if(firstVal == secondVal) begin
+			    result = 1;
+			end else begin
+			    result = 0;
+			end
+		    end
+		`NEQ:
+		    begin
+			if(firstVal != secondVal) begin
+			    result = 1;
+			end else begin
+			    result = 0;
+			end
+		    end
+		`GTE:
+		    begin
+			if(firstVal >= secondVal) begin
+			    result = 1;
+			end else begin
+			    result = 0;
+			end
+		    end
+		`GTEU:
+		    begin
+			if(u_firstVal >= u_secondVal) begin
+			    result = 1;
+			end else begin
+			    result = 0;
+			end
+		    end
 		`NOTHING: ;//_result = result;
 		//default: _result = value1;
 	    endcase
@@ -127,7 +159,7 @@ module alu
 	always_ff @ (posedge clk) begin
 		
 	    if(opcode != `NOTHING) begin
-	//        $display("Opcode %d First num %d Second num %d Immediate %d, Result %d", opcode, value1, value2, immediate, result);
+	        //$display("Opcode %d First num %d Second num %d Immediate %d, Result %d", opcode, value1, value2, immediate, result);
 	    end
 	end
 

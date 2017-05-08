@@ -593,7 +593,7 @@ module top
     //instantiate decode modules for each instruction
     decoder instr_decode_mod (
                 //INPUTS
-                .clk(clk), .instruction(instr),
+                .clk(clk), .instruction(instr), .cur_pc(pc),
 
                 //OUTPUTS
                 .rd(_ID_rd), .rs1(_ID_rs1), .rs2(_ID_rs2), 

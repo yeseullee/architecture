@@ -8,6 +8,7 @@ module decoder
 
 	  // instruction to read
 	  input [31:0] instruction,
+	  input cur_pc,
 	  
 	  // outputs
 	  output [4:0] rd,
@@ -71,21 +72,21 @@ module decoder
 					if(rd == 0) begin
 						//pseudo-instruction for "jal x0, offset"
 						$display("j %d", jal_imm);
-						alu_op = 4'b0;
+						alu_op = `NOTHING;
 					end
 					else if(rd == 1) begin
 						//pseudo-instruction for "jal x1, offset"
 						$display("jal %d", jal_imm);
-						alu_op = 4'b0;
+						alu_op = `NOTHING;
 					end
 					else begin
 						$display("jal $%d, %d", rd, jal_imm);
-						alu_op = 4'b0;
+						alu_op = `NOTHING;
 					end
-					immediate = jal_imm;
+					immediate = jal_imm + cur_pc;
 					instr_type = `UJTYPE;
-					//reg_write = 1;
-					//rd = 5'b11111; //jal stores address into register
+					reg_write = 1;
+					//rd = 1; //jal stores address into register, set to $1 by standard convention
 				end
 
 			//u_instr
@@ -105,72 +106,73 @@ module decoder
 				end
 
 			//sb_instr
+			//TODO: a lot of these are just simple comparison operations
 			7'b1100011: begin
 					case(func3)
 						3'b000: begin
 								if(rs2 == 0) begin
 									//pseudo-instruction for "beq rs1, x0, offset"
 									$display("beqz $%d, %d", rs1, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `EQUAL;
 								end
 								else begin
 									$display("beq $%d, $%d, %d", rs1, rs2, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `EQUAL;
 								end
 							end
 						3'b001: begin
 								if(rs2 == 0) begin
 									//pseudo-instruction for "bne rs1, x0, offset"
 									$display("bnez $%d, %d", rs1, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `NEQ;
 								end
 								else begin
 									$display("bne $%d, $%d, %d", rs1, rs2, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `NEQ;
 								end
 							end
 						3'b100: begin
 								if(rs1 == 0) begin
 									//pseudo-instruction for "blt x0, rs2, offset"
 									$display("bgtz $%d, %d", rs2, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `LESS;
 								end
 								else if(rs2 == 0) begin
 									//pseudo-instruction for "blt rs1, x0, offset"
 									$display("bltz $%d, %d", rs1, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `LESS;
 								end
 								else begin
 									$display("blt $%d, $%d, %d", rs1, rs2, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `LESS;
 								end
 							end
 						3'b101: begin
 								if(rs1 == 0) begin
 									//pseudo-instruction for "bge x0, rs2, offset"
 									$display("blez $%d, %d", rs2, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `GTE;
 								end
 								else if(rs2 == 0) begin
 									//pseudo-instruction for "bge rs1, x0, offset"
 									$display("bgez $%d, %d", rs1, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `GTE;
 								end
 								else begin
 									$display("bge $%d, $%d, %d", rs1, rs2, sb_imm);
-									alu_op = 4'b0;
+									alu_op = `GTE;
 								end
 							end
 						3'b110: begin
 								$display("bltu $%d, $%d, %d", rs1, rs2, sb_imm);
-								alu_op = 4'b0;
+								alu_op = `LESSU;
 							end
 						3'b111: begin
 								$display("bgeu $%d, $%d, %d", rs1, rs2, sb_imm);
-								alu_op = 4'b0;
+								alu_op = `GTEU;
 							end
 					endcase
-					immediate = sb_imm;
+					immediate = sb_imm + cur_pc;
 					instr_type = `SBTYPE;
 				end
 
@@ -389,22 +391,23 @@ module decoder
 					if(i_imm == 0 && rd == 0 && rs1 == 1) begin
 						//pseudo-instruction for "jalr x0, x1, 0"
 						$display("ret");
-						alu_op = 4'b0;
+						alu_op = `NOTHING;
 					end
 					else if(i_imm == 0 && rd == 0) begin
 						//pseudo-instruction for "jalr x0, rs1, 0"
 						$display("jr $%d", rs1);
-						alu_op = 4'b0;
+						alu_op = `NOTHING;
 					end
 					else if(i_imm == 0 && rd == 1) begin
 						//pseudo-instruction for "jalr x1, rs1, 0"
 						$display("jalr $%d", rs1);
-						alu_op = 4'b0;
+						alu_op = `NOTHING;
 					end
 					else begin
 						$display("jalr $%d, $%d", rd, rs1);
-						alu_op = 4'b0;
+						alu_op = `NOTHING;
 					end
+					immediate = i_imm + cur_pc;
 					reg_write = 1;
 					instr_type = `ITYPE;
 				end
@@ -452,7 +455,6 @@ module decoder
 					mem_access = `MEM_READ;
 				end
 			7'b0010011: begin //32I
-					immediate = i_imm;
 					case(func3)
 						3'b000: begin
 								if(i_imm == 0 && rd == 0 && rs1 == 0) begin
@@ -529,11 +531,11 @@ module decoder
 								alu_op = `AND;
 							end
 					endcase
+					immediate = i_imm;
 					reg_write = 1;
 					instr_type = `ITYPE;
 				end
 			7'b0011011: begin //64I
-					immediate = i_imm;
 					case(func3)
 						3'b000: begin
 								if(i_imm == 0) begin
@@ -567,6 +569,7 @@ module decoder
 								endcase
 							end
 					endcase
+					immediate = i_imm;
 					reg_write = 1;
 					instr_type = `ITYPE;
 				end
