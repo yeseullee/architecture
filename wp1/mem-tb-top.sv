@@ -7,13 +7,13 @@ module top
 		INIT = 0,
 		WRITE = 1,
 		SEND = 2,
-		BREAK = 3
+		BREAK = 3,
 		FETCH = 4,
 		WAIT = 5
 	)
 	(
 		input  clk,
-			   reset,
+			reset,
 
 		// 64-bit address of the program entry point
 		input  [63:0] entry,
@@ -137,7 +137,7 @@ module top
 						end
 					end
 					else begin
-						ext_state = WAIT;
+						next_state = WAIT;
 					end
 				end
 				else begin
