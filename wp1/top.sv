@@ -61,6 +61,8 @@ module top
     reg _getinstr_ready;
     reg [31:0] instr_before_fetch;
     reg [31:0] _instr_before_fetch;
+    reg [32:0] last_instr;
+    reg [32:0] _last_instr;
 
     //handle incoming instructions
     //setup inputs & outputs for all modules
@@ -417,6 +419,7 @@ module top
                         
                     //THE END
                     if(_instr == 32'b0) begin
+                        _last_instr = {1'b0,instr}; //The instr before this.
                         next_state = IDLE;
                     end else if(_instr_index >= 16) begin
                         next_state = FETCH;
@@ -425,17 +428,11 @@ module top
 
                         //Stall
                         _instr_before_fetch = _instr;
-                        //_stall_instr = _instr;
-                        //_stallstate = GETINSTR;
                     end
-/*
-                    //STALL
-                    if(next_state < GETINSTR) begin
-                        _stall_instr = _instr;
-                        _stallstate = GETINSTR;
-                    end
-*/                end
-            IDLE: $finish;
+                end
+            IDLE: if(last_instr[32] == 1) begin
+                      $finish;
+                  end
         endcase
     end
 
@@ -665,6 +662,10 @@ module top
             if(writinglist[MEM_write_reg][32] && (writinglist[MEM_write_reg][31:0] == MEM_instr)) begin
                 _writinglist[MEM_write_reg] = {32'b0};
             end
+
+            if(MEM_instr == last_instr[31:0])begin
+                _last_instr = {1'b1,MEM_instr};
+            end
         end
     end
 
@@ -744,6 +745,7 @@ module top
         pc <= _pc;
         fetch_count <= _fetch_count;
         getinstr_ready <= _getinstr_ready;
+        last_instr <= _last_instr;
         
         for (int i = 0; i < 16; i++) begin
             instrlist[i] <= _instrlist[i];
