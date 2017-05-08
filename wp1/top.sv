@@ -715,6 +715,7 @@ module top
         end
         //
 
+        //Either in the stall (GETINSTR) or it needs to get more instructions.
         if(_stallstate < GETINSTR || next_state < GETINSTR) begin
         //set IF registers
         state <= next_state;
