@@ -190,6 +190,8 @@ module cache
 	   
 		case(state)
 			LOOKUP: begin
+					//cache miss with writing should also go to UPDATE, since all 512 bits are given
+					//goes to RESPOND or DRAMRD otherwise
 					//compare to existing cache and set next_state and _content respectively
 					if(cache_type == 0) begin //direct cache
 						if(valid_bits[dir_index] == 1) begin
@@ -207,7 +209,6 @@ module cache
 									_content = cache_data[dir_index];
 								end
 							end
-//TODO:cache miss with writing should also go to UPDATE, since all 512 bits are given
 							else if(req_tag[12] == `SYSBUS_WRITE) begin
 								//cache miss on write
 								next_state = UPDATE;
