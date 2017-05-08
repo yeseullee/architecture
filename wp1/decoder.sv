@@ -93,14 +93,14 @@ module decoder
 			7'b0110111: begin
 					$display("lui $%d, %d", rd, u_imm);
 					immediate = u_imm;
-					alu_op = 4'b0;
+					alu_op = `IMMVAL;
 					instr_type = `UTYPE;
 					reg_write = 1;
 				end
 			7'b0010111: begin
 					$display("auipc $%d, %d", rd, u_imm);
-					immediate = u_imm;
-					alu_op = 4'b0001;
+					immediate = u_imm + cur_pc;
+					alu_op = `IMMVAL;
 					instr_type = `UTYPE;
 					reg_write = 1;
 				end
@@ -233,7 +233,7 @@ module decoder
 							end
 						3'b001: begin
 								$display("sllw $%d, $%d, $%d", rd, rs1, rs2);
-								alu_op = 4'b0;
+								alu_op = `SLL;
 							end
 						3'b100: begin
 								$display("divw $%d, $%d, $%d", rd, rs1, rs2);
@@ -243,7 +243,7 @@ module decoder
 								case(func7)
 									7'b0000000: begin
 											$display("srlw $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op = 4'b0;
+											alu_op = `SRL;
 										end
 									7'b0000001: begin
 											$display("divuw $%d, $%d, $%d", rd, rs1, rs2);
@@ -251,17 +251,17 @@ module decoder
 										end
 									7'b0100000: begin
 											$display("sraw $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op = 4'b0;
+											alu_op = `SRA;
 										end
 								endcase
 							end
 						3'b110: begin
 								$display("remw $%d, $%d, $%d", rd, rs1, rs2);
-								alu_op = 4'b0;
+								alu_op = `REM;
 							end
 						3'b111: begin
 								$display("remuw $%d, $%d, $%d", rd, rs1, rs2);
-								alu_op = 4'b0;
+								alu_op = `REMU;
 							end
 					endcase
 					reg_write = 1;
@@ -541,7 +541,8 @@ module decoder
 								if(i_imm == 0) begin
 									//pseudo-instruction for "addiw rd, rs1, x0"
 									$display("sext.w $%d, $%d", rd, rs1);
-									alu_op = 4'b0;
+									alu_op = `ADD;
+									//since it's a pseudo instructionm, should have same as addiw
 								end
 								else begin
 									$display("addiw $%d, $%d, %d", rd, rs1, i_imm);
@@ -552,19 +553,19 @@ module decoder
 						3'b001: begin
 								$display("slliw $%d, $%d %d", rd, rs1, shamt);
 								immediate = {26'b0, shamt};
-								alu_op = 4'b0;
+								alu_op = `SLL;
 							end
 						3'b010: begin
 								case(func7)
 									7'b0000000: begin
 											$display("srliw $%d, $%d %d", rd, rs1, shamt);
 											immediate = {26'b0, shamt};
-											alu_op = 4'b0;
+											alu_op = `SRL;
 										end
 									7'b0100000: begin
 											$display("sraiw $%d, $%d %d", rd, rs1, shamt);
 											immediate = {26'b0, shamt};
-											alu_op = 4'b0;
+											alu_op = `SRA;
 										end
 								endcase
 							end

@@ -590,6 +590,8 @@ module top
     // In Decode state
     //instantiate decode modules for each instruction
     decoder instr_decode_mod (
+                //TODO: store each instruction's pc address into instr_list, and pull it back out to feed into decode
+                //	potential idea: use pc - 8*instr_count to get the address of the instruction
                 //INPUTS
                 .clk(clk), .instruction(instr), .cur_pc(pc),
 

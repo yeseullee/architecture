@@ -29,7 +29,7 @@
 `define DIVU 11'd23
 `define REMU 11'd24
 
-
+`define IMMVAL 11'd25
 
 `define NOTYPE 4'd0
 `define RTYPE 4'd1
