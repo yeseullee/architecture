@@ -1,0 +1,34 @@
+1. Building/Running your simulator code
+
+   Following are the commands to build and run the code:
+
+   > make       // build code
+   > make run   // run code
+
+   The result of running the code will be a 'trace.vcd' waveform
+   file. You can view it using 'gtkwave' or 'dinotrace' by tunneling
+   X11 through ssh, or you can download the file to your local machine
+   and view it there.
+
+   To change the program binary which you are decoding, edit the
+   following line in Makefile:
+   
+   RUNELF=...
+
+
+2. Viewing the trace.vcd waveform
+
+   If you have logged in to the server using the -Y or -X option, you
+   can view waveforms using the following command:
+
+   > gtkwave trace.vcd
+
+   (you can also use dinotrace, or download the .vcd to view it)
+
+
+3. Submitting your code
+   
+   Type the following command in your project directory. It will sign
+   and submit your code to us:
+
+  > make submit
