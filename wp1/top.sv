@@ -57,6 +57,10 @@ module top
     reg [31:0] _instr;
     reg [4:0] fetch_count;
     reg [4:0] _fetch_count;
+    reg getinstr_ready;
+    reg _getinstr_ready;
+    reg [31:0] instr_before_fetch;
+    reg [31:0] _instr_before_fetch;
 
     //handle incoming instructions
     //setup inputs & outputs for all modules
@@ -349,7 +353,7 @@ module top
                             IF_cache_bus_respack = 1;
                             // For the first instr after fetch.
                             next_state = GETINSTR;
-                            _instr_index = 0;
+                            _getinstr_ready = 1;
                             _fetch_count = 0;
                         end
                         else if(IF_cache_bus_respcyc == 1) begin
@@ -371,7 +375,7 @@ module top
                             IF_arbiter_bus_respack = 1;
                             // For the first instr after fetch.
                             next_state = GETINSTR;
-                            _instr_index = 0;
+                            _getinstr_ready = 1;
                             _fetch_count = 0;
                         end
                         else if(IF_arbiter_bus_respcyc == 1) begin
@@ -390,13 +394,17 @@ module top
                     end
                  end
             GETINSTR: begin
-                    if(instr_index == 0) begin
+                    if(getinstr_ready == 1) begin
                         if(cache == 1) begin
                             IF_cache_bus_respack = 1;
                         end
                         else begin
                         IF_arbiter_bus_respack = 1;
                         end
+                        //no more stall (if there was from fetching)
+                        _instr_before_fetch = 0;
+                        //set this bit to 0 until fetch again.
+                        _getinstr_ready = 0;
                     end
 
                     //GOOD FOR NOW
@@ -413,6 +421,12 @@ module top
                     end else if(_instr_index >= 16) begin
                         next_state = FETCH;
                         _pc = pc + 64;
+                        _instr_index = 0;
+
+                        //Stall
+                        _instr_before_fetch = _instr;
+                        //_stall_instr = _instr;
+                        //_stallstate = GETINSTR;
                     end
 /*
                     //STALL
@@ -717,6 +731,7 @@ module top
         // The only registers written to no matter what.
         stallstate <= _stallstate;
         stall_instr <= _stall_instr;
+        instr_before_fetch <= _instr_before_fetch;
 
         for (int i = 0; i < 32; i++) begin
             writinglist[i] <= _writinglist[i];
@@ -728,7 +743,7 @@ module top
         state <= next_state;
         pc <= _pc;
         fetch_count <= _fetch_count;
-        instr_index <= _instr_index;
+        getinstr_ready <= _getinstr_ready;
         
         for (int i = 0; i < 16; i++) begin
             instrlist[i] <= _instrlist[i];
@@ -737,6 +752,7 @@ module top
         // if not in stall.
         if(_stallstate < GETINSTR) begin
         instr <= _instr;
+        instr_index <= _instr_index;
         end
         
         DECODE_state <= _DECODE_state;
@@ -789,7 +805,9 @@ module top
         EX_rs2_val <= _EX_rs2_val;
         end
 
-        if(_stallstate < MEM) begin
+        // if not (in stall or it has the instruction which was before fetch)
+        // This is to block it from writing again and again..
+        if(_stallstate < MEM && instr_before_fetch != _MEM_instr) begin
         //set MEM registers
         MEM_write_reg <= _MEM_write_reg;
         MEM_value <= _MEM_value;
@@ -800,7 +818,7 @@ module top
         MEM_read_value <= _MEM_read_value;
         end
 
-        if(_stallstate < WRITEBACK) begin
+        if(_stallstate < WRITEBACK && instr_before_fetch != _WB_instr) begin
         //Set WB registers
         WB_instr <= _WB_instr;
         WB_write_reg <= _WB_write_reg;
