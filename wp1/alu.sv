@@ -34,7 +34,7 @@ module alu
 		secondVal = $signed(value2);
                 u_secondVal = $unsigned(value2);
 	    end
-	    if (instr_type == `ITYPE) begin
+	    if (instr_type == `ITYPE || instr_type == `STYPE) begin
 		secondVal = $signed(immediate);
                 u_secondVal = $unsigned(immediate);
 	    	if (opcode == `SLL || opcode == `SRL || opcode == `SRA) begin
@@ -45,7 +45,7 @@ module alu
 	    case(opcode)
 		`ADD: 
 		    begin
-			//ADD, ADDI, LI, MV, etc. use this.
+			//ADD, ADDI, LI, MV, load, store, etc. use this.
 			result = firstVal + secondVal;
 	            end
 		`SUB: result = firstVal - secondVal;

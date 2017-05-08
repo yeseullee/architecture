@@ -179,22 +179,22 @@ module decoder
 					case(func3)
 						3'b000: begin
 								$display("sb $%d, %d($%d)", rs2, s_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_BYTE;
 							end
 						3'b001: begin
 								$display("sh $%d, %d($%d)", rs2, s_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = 4`ADD;
 								mem_size = `MEM_HALF;
 							end
 						3'b010: begin
 								$display("sw $%d, %d($%d)", rs2, s_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_WORD;
 							end
 						3'b011: begin
 								$display("sd $%d, %d($%d)", rs2, s_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_DOUBLE;
 							end
 					endcase
@@ -412,37 +412,37 @@ module decoder
 					case(func3)
 						3'b000: begin
 								$display("lb $%d, %d($%d)", rd, i_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_BYTE;
 							end
 						3'b001: begin
 								$display("lh $%d, %d($%d)", rd, i_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_HALF;
 							end
 						3'b010: begin
 								$display("lw $%d, %d($%d)", rd, i_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_WORD;
 							end
 						3'b011: begin
 								$display("ld $%d, %d($%d)", rd, i_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_DOUBLE;
 							end
 						3'b100: begin
 								$display("lbu $%d, %d($%d)", rd, i_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_US_BYTE;
 							end
 						3'b101: begin
 								$display("lhu $%d, %d($%d)", rd, i_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_US_HALF;
 							end
 						3'b110: begin
 								$display("lwu $%d, %d($%d)", rd, i_imm, rs1);
-								alu_op = 4'b0;
+								alu_op = `ADD;
 								mem_size = `MEM_US_WORD;
 							end
 					endcase
