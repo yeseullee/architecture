@@ -44,6 +44,7 @@ module top
     logic [63:0] _pc;
     logic [63:0] cur_pc;
     logic [63:0] _cur_pc;
+    logic [63:0] sp_val;
 
     //For stalls
     reg [31:0] stall_instr;
@@ -747,8 +748,8 @@ module top
     reg_file register_mod (
                 //INPUTS
                 //Used Only From READ Stage.
-                .clk(clk), .reset(reset), .rs1(ID_rs1), 
-                .rs2(ID_rs2),  
+                .clk(clk), .reset(reset), .sp_val(stackptr),
+                .rs1(ID_rs1), .rs2(ID_rs2),  
                 //Used Only From WB Stage.
                 .write_sig(MEM_write_sig), 
                 .write_val(MEM_value), 
@@ -782,7 +783,6 @@ module top
             MEM_status <= 0;
             MEM_ptr <= 0;
             MEM_read_value <= 0;
-
             for (int i = 0; i < 16; i++) begin
                 instrlist[i] <= 32'b0;
             end  
