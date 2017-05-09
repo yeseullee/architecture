@@ -107,8 +107,8 @@ module top
     logic [2:0] _ID_mem_size;
     logic [1:0] ID_ecall;
     logic [1:0] _ID_ecall;
-    logic ID_isBranch;
-    logic _ID_isBranch;
+    logic [2:0] ID_isBranch;
+    logic [2:0] _ID_isBranch;
 
 
     //READ WIRES & REGISTERS  
@@ -140,8 +140,8 @@ module top
     logic [1:0] _RD_mem_access;
     logic [2:0] RD_mem_size;
     logic [2:0] _RD_mem_size;
-    logic RD_isBranch;
-    logic _RD_isBranch;
+    logic [2:0] RD_isBranch;
+    logic [2:0] _RD_isBranch;
 
 
     //EXECUTE stage WIRES & REGISTERS
@@ -160,8 +160,10 @@ module top
     logic [1:0] _EX_mem_access;
     logic [2:0] EX_mem_size;
     logic [2:0] _EX_mem_size;
-    logic EX_isBranch;
-    logic _EX_isBranch;
+    logic [2:0] EX_isBranch;
+    logic [2:0] _EX_isBranch;
+    logic [31:0] EX_immediate;
+    logic [31:0] _EX_immediate;
 
     //MEMORY WIRES & REGISTERS
     logic [63:0] _MEM_alu_result;
@@ -176,8 +178,8 @@ module top
     logic [1:0] _MEM_access;
     logic [2:0] _MEM_size;
     logic [63:0] _MEM_rs2_val;
-    logic MEM_isBranch;
-    logic _MEM_isBranch;
+    logic [2:0] MEM_isBranch;
+    logic [2:0] _MEM_isBranch;
 
     //memory stage variables
     logic [1:0] MEM_status;
@@ -518,14 +520,12 @@ module top
 
             _EXECUTE_state = EXECUTE;
 
-            //Detect branch //TODO auipc U type
-            if(ID_alu_op == `JUMP_UNCOND) begin
+            //Detect Unconditional branch 
+            if(ID_isBranch == `UNCOND) begin
                 //Unconditional Branch
                 _jumpbit = 1;
-
                 //Then stall
-                _nop_state = READ; 
-                
+               // _nop_state = GETINSTR; 
                 
             //Conditional branch.
             end else begin /////
@@ -563,6 +563,7 @@ module top
             _EX_mem_access = RD_mem_access;
             _EX_mem_size = RD_mem_size;
             _EX_isBranch = RD_isBranch;
+            _EX_immediate = RD_immediate;
 
             //To get more instructions.
             _MEM_state = MEM; 
@@ -575,22 +576,23 @@ module top
         if(MEM_state == MEM) begin
 
   
-            if(EX_isBranch && jumpbit == 0) begin
+            if(EX_isBranch == `COND) begin
                 //conditional branches.
                 if(EX_alu_result) begin
-/*                  _jumpbit = 1;  
-                    _jump_to_addr = EX_alu_result;
-                    _index_from_pc = (EX_alu_result % 64)/4;
-                    //next_state = JUMP; 
+                    _jumpbit = 1;  
+                    _jump_to_addr = EX_immediate;
+                    _index_from_pc = (EX_immediate % 64)/4;
+                    _nop_state = READ;
                     // Should jump after WB... to store the addr to $rd.
-*/                end else begin
+                end else begin
                     // Not branching.
                 end
-            end else if(EX_isBranch && jumpbit == 1) begin
+            end else if(EX_isBranch == `UNCOND) begin
                 //Unconditional branch.
                 _jump_to_addr = EX_alu_result;
                 _index_from_pc = (EX_alu_result % 64)/4;
                 // Should jump after WB... to store the addr to $rd.
+                _nop_state = READ;
 
             end
 
@@ -757,8 +759,9 @@ module top
             //This is for jumping
             if(jumpbit) begin
                 next_state = JUMP;
-                _nop_state = WRITEBACK;
+                //_nop_state = WRITEBACK;
             end
+            //This is for calling nop after the last write back (before new fetch).
             if(instr_before_fetch == MEM_instr && instr_before_fetch != 0) begin
                 _nop_state = WRITEBACK;
             end
@@ -782,7 +785,7 @@ module top
                 .alu_op(_ID_alu_op), .shamt(_ID_shamt), 
                 .reg_write(_ID_write_sig), .instr_type(_ID_instr_type), 
                 .mem_access(_ID_mem_access), .mem_size(_ID_mem_size),
-                .isECALL(_ID_ecall)
+                .isECALL(_ID_ecall), .isBranch(_ID_isBranch)
     );
 
     // In READ state and WRITEBACK state
@@ -958,6 +961,7 @@ module top
         EX_mem_size <= 0;
         EX_rs2_val <= 0;
         EX_isBranch <= 0;
+        EX_immediate <= 0;
         end else begin
         if(_stallstate < EXECUTE) begin
         //set EX registers
@@ -969,6 +973,7 @@ module top
         EX_mem_size <= _EX_mem_size;
         EX_rs2_val <= _EX_rs2_val;
         EX_isBranch <= _EX_isBranch;
+        EX_immediate <= _EX_immediate;
         end
         end
 

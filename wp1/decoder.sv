@@ -21,7 +21,7 @@ module decoder
 	  output [1:0] mem_access,
 	  output [2:0] mem_size,
           output [1:0] isECALL,
-          output isBranch
+          output [2:0] isBranch
 	);
 
 	logic [6:0] opcode = instruction[6:0];
@@ -89,7 +89,7 @@ module decoder
 					immediate = jal_imm + cur_pc;
 					instr_type = `UJTYPE;
 					reg_write = 1;
-                                        isBranch = 1;
+                                        isBranch = `UNCOND;
 					//rd = 1; //jal stores address into register, set to $1 by standard convention
 				end
 
@@ -178,7 +178,7 @@ module decoder
 					endcase
 					immediate = sb_imm + cur_pc;
 					instr_type = `SBTYPE;
-                                        isBranch = 1;
+                                        isBranch = `COND;
 				end
 
 			//s_instr
@@ -414,7 +414,7 @@ module decoder
 					end
 					immediate = i_imm + 4;
 					reg_write = 1;
-                                        isBranch = 1;
+                                        isBranch = `UNCOND;
 					instr_type = `ITYPE;
 				end
 			7'b0000011: begin //load
