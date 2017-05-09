@@ -1,4 +1,3 @@
-`include "Sysbus.defs"
 module cache
 	#(
 		//Memory bus constants

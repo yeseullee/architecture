@@ -1,4 +1,3 @@
-`include "Sysbus.defs"
 `include "Alu.defs"
 `include "Mem.defs"
 module decoder

@@ -1,4 +1,3 @@
-`include "Sysbus.defs"
 module set_cache //2-way set associative cache
 	#(
 		//Memory bus constants

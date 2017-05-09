@@ -1,4 +1,3 @@
-`include "Sysbus.defs"
 module arbiter
 	#(
 		//Memory bus constants

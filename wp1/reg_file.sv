@@ -1,4 +1,3 @@
-`include "Sysbus.defs"
 module reg_file
 	(
 	  input  clk,
