@@ -408,7 +408,7 @@ module decoder
 						$display("jalr $%d, $%d", rd, rs1);
 						alu_op = `JUMP_UNCOND;
 					end
-					immediate = i_imm + cur_pc;
+					immediate = i_imm + 4;
 					reg_write = 1;
 					instr_type = `ITYPE;
 				end
