@@ -58,6 +58,8 @@ module top
     reg [31:0] _jump_to_addr;
     reg [3:0] index_from_pc;
     reg [3:0] _index_from_pc;
+    reg [3:0] nop_state;
+    reg [3:0] _nop_state;
 
     //The index is the register.
     // [32] = Is written to; [31:0] = The instruction writing. 
@@ -415,13 +417,16 @@ module top
                         else begin
                         IF_arbiter_bus_respack = 1;
                         end
-                        //no more stall (if there was from fetching)
+                        //no more stall (from fetching)
                         _instr_before_fetch = 0;
                         //set this bit to 0 until fetch again.
                         _getinstr_ready = 0;
 
                         if(jumpbit) begin
                             _jumpbit = 0;
+                            _nop_state = 0;
+                            _jump_to_addr = 0;
+                            _index_from_pc = 0;
                             _instr_index = index_from_pc;
                         end else begin
                             _instr_index = 0;
@@ -503,22 +508,22 @@ module top
             _EXECUTE_state = EXECUTE;
 
             //Detect branch //TODO auipc U type
-         //   if(ID_instr_type == `UJTYPE) begin
+            if(ID_instr_type == `UJTYPE) begin
                 //Unconditional Branch
                 _jumpbit = 1;
                 _jump_to_addr = ID_immediate;
                 _index_from_pc = (ID_immediate % 64)/4;
-                //next_state = JUMP;
+                next_state = JUMP;
 
                 //Then stall
-
+                _nop_state = READ; 
                 //I also need to set $1 to be that immediate value.
                 
-          /*      
-            end else if (ID_instr_type == `SBTYPE) begin
+                
+//            end else if (ID_instr_type == `SBTYPE) begin
               //Conditional branch.
-            end
-*/
+            end else begin /////
+
             //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
             if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
                 _stall_instr = ID_instr;
@@ -540,6 +545,8 @@ module top
                     _stall_instr = 0;
                 end
             end
+
+            end ///// Else ends.
 
         end
         if(EXECUTE_state == EXECUTE) begin
@@ -786,6 +793,8 @@ module top
         stall_instr <= _stall_instr;
         instr_before_fetch <= _instr_before_fetch;
 
+        nop_state <= _nop_state;
+
         for (int i = 0; i < 32; i++) begin
             writinglist[i] <= _writinglist[i];
         end
@@ -803,19 +812,36 @@ module top
             instrlist[i] <= _instrlist[i];
         end
 
-        // if not in stall.
-        if(_stallstate < GETINSTR) begin
-        instr <= _instr;
-        instr_index <= _instr_index;
-        cur_pc <= _cur_pc;
-        end
-        
         DECODE_state <= _DECODE_state;
         READ_state <= _READ_state;
         EXECUTE_state <= _EXECUTE_state;
         WRITEBACK_state <= _WRITEBACK_state;
         MEM_state <= _MEM_state;
 
+        // if nop
+        if(_nop_state > GETINSTR) begin
+            instr <= 0;
+        end
+        if(_stallstate < GETINSTR) begin
+        instr <= _instr;
+        instr_index <= _instr_index;
+        cur_pc <= _cur_pc;
+        end
+        
+        if(_nop_state > DECODE) begin
+        //set ID registers
+        ID_rd <= 0;
+        ID_rs1 <= 0;
+        ID_rs2 <= 0;
+        ID_immediate <= 0;
+        ID_alu_op <= 0;
+        ID_shamt <= 0;
+        ID_write_sig <= 0;
+        ID_instr_type <= 0;
+        ID_instr <= 0;
+        ID_mem_access <= 0;
+        ID_mem_size <= 0;
+        end
         if(_stallstate < DECODE) begin
         //set ID registers
         ID_rd <= _ID_rd;
@@ -829,6 +855,24 @@ module top
         ID_instr <= _ID_instr;
         ID_mem_access <= _ID_mem_access;
         ID_mem_size <= _ID_mem_size;
+        end
+
+        if(_nop_state > READ) begin
+        //set READ registers
+        RD_immediate <= 0;
+        RD_alu_op <= 0;
+        RD_shamt <= 0;
+        RD_write_sig <= 0;
+        RD_write_reg <= 0;
+        RD_instr_type <= 0;
+        RD_rs1_val <= 0;
+        RD_rs2_val <= 0;
+        RD_instr <= 0;
+        RD_mem_access <= 0;
+        RD_mem_size <= 0;
+
+        RD_rs1 <= 0;
+        RD_rs2 <= 0;
         end
 
         if(_stallstate < READ) begin
@@ -852,6 +896,16 @@ module top
         index_from_pc <= _index_from_pc;
         end
 
+        if(_nop_state > EXECUTE) begin
+        //set EX registers
+        EX_alu_result <= 0;
+        EX_write_reg <= 0;
+        EX_write_sig <= 0;
+        EX_instr <= 0;
+        EX_mem_access <= 0;
+        EX_mem_size <= 0;
+        EX_rs2_val <= 0;
+        end
         if(_stallstate < EXECUTE) begin
         //set EX registers
         EX_alu_result <= _EX_alu_result;
@@ -863,6 +917,17 @@ module top
         EX_rs2_val <= _EX_rs2_val;
         end
 
+
+        if(_nop_state > MEM) begin
+        //set MEM registers
+        MEM_write_reg <= 0;
+        MEM_value <= 0;
+        MEM_write_sig <= 0;
+        MEM_status <= 0;
+        MEM_instr <= 0;
+        MEM_ptr <= 0;
+        MEM_read_value <= 0;
+        end
         // if not (in stall or it has the instruction which was before fetch)
         // This is to block it from writing again and again..
         if(_stallstate < MEM && instr_before_fetch != _MEM_instr) begin
@@ -876,6 +941,15 @@ module top
         MEM_read_value <= _MEM_read_value;
         end
 
+
+
+        if(_nop_state > WRITEBACK) begin
+        //Set WB registers
+        WB_instr <= 0;
+        WB_write_reg <= 0;
+        WB_write_val <= 0;
+        WB_write_sig <= 0;
+        end
         if(_stallstate < WRITEBACK && instr_before_fetch != _WB_instr) begin
         //Set WB registers
         WB_instr <= _WB_instr;
