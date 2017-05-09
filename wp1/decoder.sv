@@ -19,7 +19,8 @@ module decoder
 	  output reg_write,
 	  output [3:0] instr_type,
 	  output [1:0] mem_access,
-	  output [2:0] mem_size
+	  output [2:0] mem_size,
+          output [1:0] isECALL
 	);
 
 	logic [6:0] opcode = instruction[6:0];
@@ -56,6 +57,7 @@ module decoder
 		reg_write = 1'b0;
 		mem_access = `MEM_NO_ACCESS;
 		mem_size = `MEM_NO_SIZE;
+                isECALL = 0;
 
 		//set immediate values
 		jal_imm = {{12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0};
@@ -71,16 +73,16 @@ module decoder
 					if(rd == 0) begin
 						//pseudo-instruction for "jal x0, offset"
 						$display("j %d", jal_imm);
-						alu_op = `NOTHING;
+						alu_op = `JUMP_UNCOND;
 					end
 					else if(rd == 1) begin
 						//pseudo-instruction for "jal x1, offset"
 						$display("jal %d", jal_imm);
-						alu_op = `NOTHING;
+						alu_op = `JUMP_UNCOND;
 					end
 					else begin
 						$display("jal $%d, %d", rd, jal_imm);
-						alu_op = `NOTHING;
+						alu_op = `JUMP_UNCOND;
 					end
 					immediate = jal_imm + cur_pc;
 					instr_type = `UJTYPE;
@@ -390,21 +392,21 @@ module decoder
 					if(i_imm == 0 && rd == 0 && rs1 == 1) begin
 						//pseudo-instruction for "jalr x0, x1, 0"
 						$display("ret");
-						alu_op = `NOTHING;
+						alu_op = `JUMP_UNCOND;
 					end
 					else if(i_imm == 0 && rd == 0) begin
 						//pseudo-instruction for "jalr x0, rs1, 0"
 						$display("jr $%d", rs1);
-						alu_op = `NOTHING;
+						alu_op = `JUMP_UNCOND;
 					end
 					else if(i_imm == 0 && rd == 1) begin
 						//pseudo-instruction for "jalr x1, rs1, 0"
 						$display("jalr $%d", rs1);
-						alu_op = `NOTHING;
+						alu_op = `JUMP_UNCOND;
 					end
 					else begin
 						$display("jalr $%d, $%d", rd, rs1);
-						alu_op = `NOTHING;
+						alu_op = `JUMP_UNCOND;
 					end
 					immediate = i_imm + cur_pc;
 					reg_write = 1;
@@ -578,7 +580,23 @@ module decoder
 			7'b0000000: ;//$display("This instruction has been decoded before: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
 			default: $display("This instruction is not recognized: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
 		endcase
+
 		//prev_instr_wire = instruction;
+
+                //For ECALL instruction.
+                if(instruction == {57'b0, 7'b1110011}) begin
+	            rd=0;
+	            rs1=0;
+	            rs2=0;
+	            immediate=0;
+	            alu_op=0;
+	            shamt=0;
+	            reg_write=0;
+	            instr_type=0;
+	            mem_access=0;
+	            mem_size=0;
+                    isECALL = 1;
+                end
 	end
 
 	always_ff @ (posedge clk) begin

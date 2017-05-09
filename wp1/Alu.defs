@@ -31,6 +31,8 @@
 
 `define IMMVAL 11'd25
 
+`define JUMP_UNCOND 11'd30
+
 `define NOTYPE 4'd0
 `define RTYPE 4'd1
 `define ITYPE 4'd2

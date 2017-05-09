@@ -44,7 +44,6 @@ module top
     logic [63:0] _pc;
     logic [63:0] cur_pc;
     logic [63:0] _cur_pc;
-    logic [63:0] sp_val;
 
     //For stalls
     reg [31:0] stall_instr;
@@ -106,6 +105,8 @@ module top
     logic [1:0] _ID_mem_access;
     logic [2:0] ID_mem_size;
     logic [2:0] _ID_mem_size;
+    logic [1:0] ID_ecall;
+    logic [1:0] _ID_ecall;
 
 
     //READ WIRES & REGISTERS  
@@ -509,43 +510,42 @@ module top
             _EXECUTE_state = EXECUTE;
 
             //Detect branch //TODO auipc U type
-            if(ID_instr_type == `UJTYPE) begin
+            if(ID_alu_op == `JUMP_UNCOND) begin
                 //Unconditional Branch
                 _jumpbit = 1;
                 _jump_to_addr = ID_immediate;
                 _index_from_pc = (ID_immediate % 64)/4;
-                next_state = JUMP;
+                //next_state = JUMP; 
+                // Should jump after WB... to store the addr to $rd.
 
                 //Then stall
                 _nop_state = READ; 
-                //I also need to set $1 to be that immediate value.
                 
                 
-//            end else if (ID_instr_type == `SBTYPE) begin
-              //Conditional branch.
+            //Conditional branch.
             end else begin /////
 
-            //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
-            if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
-                _stall_instr = ID_instr;
-                _stallstate = READ;
-            end else if (writinglist[ID_rs2][32] && writinglist[ID_rs2][31:0] != ID_instr) begin
-                _stall_instr = ID_instr;
-                _stallstate = READ;
-            end
-            //Otherwise, (not stalling)
-            else begin
-                //set write reg in writinglist.
-                if(ID_write_sig) begin
-                    _writinglist[ID_rd] = {1'b1,ID_instr};
+                //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
+                if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
+                    _stall_instr = ID_instr;
+                    _stallstate = READ;
+                end else if (writinglist[ID_rs2][32] && writinglist[ID_rs2][31:0] != ID_instr) begin
+                    _stall_instr = ID_instr;
+                    _stallstate = READ;
                 end
-                //If both registers are free to go, then no more stalling.
-                //This checks if this stage initiated the stall.
-                if(stall_instr == ID_instr) begin
-                    _stallstate = 0;
-                    _stall_instr = 0;
+                //Otherwise, (not stalling)
+                else begin
+                    //set write reg in writinglist.
+                    if(ID_write_sig) begin
+                        _writinglist[ID_rd] = {1'b1,ID_instr};
+                    end
+                    //If both registers are free to go, then no more stalling.
+                    //This checks if this stage initiated the stall.
+                    if(stall_instr == ID_instr) begin
+                        _stallstate = 0;
+                        _stall_instr = 0;
+                   end
                 end
-            end
 
             end ///// Else ends.
 
@@ -740,7 +740,8 @@ module top
                 .immediate(_ID_immediate),
                 .alu_op(_ID_alu_op), .shamt(_ID_shamt), 
                 .reg_write(_ID_write_sig), .instr_type(_ID_instr_type), 
-                .mem_access(_ID_mem_access), .mem_size(_ID_mem_size)
+                .mem_access(_ID_mem_access), .mem_size(_ID_mem_size),
+                .isECALL(_ID_ecall)
     );
 
     // In READ state and WRITEBACK state
@@ -775,11 +776,11 @@ module top
     always_ff @ (posedge clk) begin
         if(reset) begin //when first starting.
             pc <= entry;
+            cur_pc <= entry;
             state <= INIT;
             instr <= 64'h0;
             fetch_count <= 0;
             instr_index <= 0;
-            cur_pc <= entry;
             MEM_status <= 0;
             MEM_ptr <= 0;
             MEM_read_value <= 0;
@@ -855,6 +856,7 @@ module top
         ID_instr <= _ID_instr;
         ID_mem_access <= _ID_mem_access;
         ID_mem_size <= _ID_mem_size;
+        ID_ecall <= _ID_ecall;
         end
 
         if(_nop_state > READ) begin

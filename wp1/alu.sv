@@ -155,6 +155,10 @@ module alu
                         //used in lui and auipc: just move sign-extended immediate value ro result
                         result = {{32{immediate[31]}}, immediate[31:0]};
                     end
+                `JUMP_UNCOND:
+                    begin
+                        result = immediate;
+                    end
 		`NOTHING: ;//_result = result;
 		//default: _result = value1;
 	    endcase
