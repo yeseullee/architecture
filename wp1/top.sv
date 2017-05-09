@@ -52,7 +52,7 @@ module top
     reg [3:0] _stallstate;
 
     //For jumps
-    reg jumpbit;
+    reg jumpbit; 
     reg _jumpbit;
     reg [31:0] jump_to_addr;
     reg [31:0] _jump_to_addr;
@@ -107,6 +107,8 @@ module top
     logic [2:0] _ID_mem_size;
     logic [1:0] ID_ecall;
     logic [1:0] _ID_ecall;
+    logic ID_isBranch;
+    logic _ID_isBranch;
 
 
     //READ WIRES & REGISTERS  
@@ -138,6 +140,8 @@ module top
     logic [1:0] _RD_mem_access;
     logic [2:0] RD_mem_size;
     logic [2:0] _RD_mem_size;
+    logic RD_isBranch;
+    logic _RD_isBranch;
 
 
     //EXECUTE stage WIRES & REGISTERS
@@ -156,7 +160,8 @@ module top
     logic [1:0] _EX_mem_access;
     logic [2:0] EX_mem_size;
     logic [2:0] _EX_mem_size;
-
+    logic EX_isBranch;
+    logic _EX_isBranch;
 
     //MEMORY WIRES & REGISTERS
     logic [63:0] _MEM_alu_result;
@@ -171,6 +176,8 @@ module top
     logic [1:0] _MEM_access;
     logic [2:0] _MEM_size;
     logic [63:0] _MEM_rs2_val;
+    logic MEM_isBranch;
+    logic _MEM_isBranch;
 
     //memory stage variables
     logic [1:0] MEM_status;
@@ -423,10 +430,10 @@ module top
                         _instr_before_fetch = 0;
                         //set this bit to 0 until fetch again.
                         _getinstr_ready = 0;
-
+                   
+                        _nop_state = 0;
                         if(jumpbit) begin
                             _jumpbit = 0;
-                            _nop_state = 0;
                             _jump_to_addr = 0;
                             _index_from_pc = 0;
                             _instr_index = index_from_pc;
@@ -449,8 +456,9 @@ module top
                             //Stall and go fetch more.
                             next_state = FETCH;
                             _pc = pc + 64;
-
                             _instr_before_fetch = _instr;
+                            _instr = 0;
+                            _instr_index = 0;
                         end else begin
 
                             _instr = instrlist[_instr_index];
@@ -506,6 +514,7 @@ module top
            
             _RD_rs1 = ID_rs1;
             _RD_rs2 = ID_rs2;
+            _RD_isBranch = ID_isBranch;
 
             _EXECUTE_state = EXECUTE;
 
@@ -513,10 +522,6 @@ module top
             if(ID_alu_op == `JUMP_UNCOND) begin
                 //Unconditional Branch
                 _jumpbit = 1;
-                _jump_to_addr = ID_immediate;
-                _index_from_pc = (ID_immediate % 64)/4;
-                //next_state = JUMP; 
-                // Should jump after WB... to store the addr to $rd.
 
                 //Then stall
                 _nop_state = READ; 
@@ -541,7 +546,7 @@ module top
                     end
                     //If both registers are free to go, then no more stalling.
                     //This checks if this stage initiated the stall.
-                    if(stall_instr == ID_instr) begin
+                    if(stall_instr == ID_instr && stall_instr != 0) begin
                         _stallstate = 0;
                         _stall_instr = 0;
                    end
@@ -557,16 +562,38 @@ module top
             _EX_instr = RD_instr;
             _EX_mem_access = RD_mem_access;
             _EX_mem_size = RD_mem_size;
+            _EX_isBranch = RD_isBranch;
 
             //To get more instructions.
             _MEM_state = MEM; 
 
 
-            if(stall_instr == _EX_instr && stallstate < EXECUTE) begin
+            if(stall_instr == _EX_instr && stallstate < EXECUTE && stall_instr != 0) begin
                 _stallstate = EXECUTE;
             end
         end
         if(MEM_state == MEM) begin
+
+  
+            if(EX_isBranch && jumpbit == 0) begin
+                //conditional branches.
+                if(EX_alu_result) begin
+/*                  _jumpbit = 1;  
+                    _jump_to_addr = EX_alu_result;
+                    _index_from_pc = (EX_alu_result % 64)/4;
+                    //next_state = JUMP; 
+                    // Should jump after WB... to store the addr to $rd.
+*/                end else begin
+                    // Not branching.
+                end
+            end else if(EX_isBranch && jumpbit == 1) begin
+                //Unconditional branch.
+                _jump_to_addr = EX_alu_result;
+                _index_from_pc = (EX_alu_result % 64)/4;
+                // Should jump after WB... to store the addr to $rd.
+
+            end
+
             //Passing these as registers to WB.
             _MEM_alu_result = EX_alu_result;
             _MEM_write_reg = EX_write_reg;
@@ -575,6 +602,7 @@ module top
             _MEM_instr = EX_instr;
             _MEM_size = EX_mem_size;
             _MEM_rs2_val = EX_rs2_val;
+            _MEM_isBranch = EX_isBranch;
 
             //read from memory if store or load, go immediately to writeback otherwise
             if(_MEM_access != `MEM_NO_ACCESS) begin
@@ -699,7 +727,7 @@ module top
                 _WRITEBACK_state = WRITEBACK;
             end
 
-            if(stall_instr == _MEM_instr && stallstate < MEM) begin
+            if(stall_instr == _MEM_instr && stallstate < MEM && stall_instr != 0) begin
                 _stallstate = MEM;
             end
         end
@@ -711,18 +739,31 @@ module top
             _WB_write_val = MEM_value;
             _WB_write_sig = MEM_write_sig;
 
-            if((stall_instr == _WB_instr) && (stallstate < WRITEBACK)) begin
+            if((stall_instr == _WB_instr) && (stallstate < WRITEBACK) && stall_instr != 0) begin
                 _stallstate = WRITEBACK;
             end
             
+            //This is for Stall...
             //If WB wrote to the reg, then clear it on writinglist.
             if(writinglist[MEM_write_reg][32] && (writinglist[MEM_write_reg][31:0] == MEM_instr)) begin
                 _writinglist[MEM_write_reg] = {32'b0};
             end
 
+            //This is for detecting the last instr.
             if(MEM_instr == last_instr[31:0])begin
                 _last_instr = {1'b1,MEM_instr};
             end
+
+            //This is for jumping
+            if(jumpbit) begin
+                next_state = JUMP;
+                _nop_state = WRITEBACK;
+            end
+            if(instr_before_fetch == MEM_instr && instr_before_fetch != 0) begin
+                _nop_state = WRITEBACK;
+            end
+
+             
         end
     end
 
@@ -808,6 +849,11 @@ module top
         fetch_count <= _fetch_count;
         getinstr_ready <= _getinstr_ready;
         last_instr <= _last_instr;
+
+        // The only place the program jumps is from WB.
+        jump_to_addr <= _jump_to_addr;
+        jumpbit <= _jumpbit;
+        index_from_pc <= _index_from_pc;
         
         for (int i = 0; i < 16; i++) begin
             instrlist[i] <= _instrlist[i];
@@ -822,13 +868,14 @@ module top
         // if nop
         if(_nop_state > GETINSTR) begin
             instr <= 0;
-        end
+        end else begin
         if(_stallstate < GETINSTR) begin
         instr <= _instr;
         instr_index <= _instr_index;
         cur_pc <= _cur_pc;
         end
-        
+        end
+
         if(_nop_state > DECODE) begin
         //set ID registers
         ID_rd <= 0;
@@ -842,7 +889,9 @@ module top
         ID_instr <= 0;
         ID_mem_access <= 0;
         ID_mem_size <= 0;
-        end
+        ID_ecall <= 0;
+        ID_isBranch <= 0;
+        end else begin
         if(_stallstate < DECODE) begin
         //set ID registers
         ID_rd <= _ID_rd;
@@ -857,6 +906,8 @@ module top
         ID_mem_access <= _ID_mem_access;
         ID_mem_size <= _ID_mem_size;
         ID_ecall <= _ID_ecall;
+        ID_isBranch <= _ID_isBranch;
+        end
         end
 
         if(_nop_state > READ) begin
@@ -875,8 +926,8 @@ module top
 
         RD_rs1 <= 0;
         RD_rs2 <= 0;
-        end
-
+        RD_isBranch <= 0;
+        end else begin
         if(_stallstate < READ) begin
         //set READ registers
         RD_immediate <= _RD_immediate;
@@ -893,9 +944,8 @@ module top
 
         RD_rs1 <= _RD_rs1;
         RD_rs2 <= _RD_rs2;
-        jump_to_addr <= _jump_to_addr;
-        jumpbit <= _jumpbit;
-        index_from_pc <= _index_from_pc;
+        RD_isBranch <= _RD_isBranch;
+        end
         end
 
         if(_nop_state > EXECUTE) begin
@@ -907,7 +957,8 @@ module top
         EX_mem_access <= 0;
         EX_mem_size <= 0;
         EX_rs2_val <= 0;
-        end
+        EX_isBranch <= 0;
+        end else begin
         if(_stallstate < EXECUTE) begin
         //set EX registers
         EX_alu_result <= _EX_alu_result;
@@ -917,8 +968,9 @@ module top
         EX_mem_access <= _EX_mem_access;
         EX_mem_size <= _EX_mem_size;
         EX_rs2_val <= _EX_rs2_val;
+        EX_isBranch <= _EX_isBranch;
         end
-
+        end
 
         if(_nop_state > MEM) begin
         //set MEM registers
@@ -929,10 +981,9 @@ module top
         MEM_instr <= 0;
         MEM_ptr <= 0;
         MEM_read_value <= 0;
-        end
-        // if not (in stall or it has the instruction which was before fetch)
-        // This is to block it from writing again and again..
-        if(_stallstate < MEM && instr_before_fetch != _MEM_instr) begin
+        MEM_isBranch <= 0;
+        end else begin
+        if(_stallstate < MEM ) begin
         //set MEM registers
         MEM_write_reg <= _MEM_write_reg;
         MEM_value <= _MEM_value;
@@ -941,9 +992,9 @@ module top
         MEM_instr <= _MEM_instr;
         MEM_ptr <= MEM_next_ptr;
         MEM_read_value <= _MEM_read_value;
+        MEM_isBranch <= _MEM_isBranch;
         end
-
-
+        end
 
         if(_nop_state > WRITEBACK) begin
         //Set WB registers
@@ -951,13 +1002,14 @@ module top
         WB_write_reg <= 0;
         WB_write_val <= 0;
         WB_write_sig <= 0;
-        end
-        if(_stallstate < WRITEBACK && instr_before_fetch != _WB_instr) begin
+        end else begin
+        if(_stallstate < WRITEBACK) begin
         //Set WB registers
         WB_instr <= _WB_instr;
         WB_write_reg <= _WB_write_reg;
         WB_write_val <= _WB_write_val;
         WB_write_sig <= _WB_write_sig;
+        end
         end
     
     end
