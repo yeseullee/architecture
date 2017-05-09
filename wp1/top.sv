@@ -15,7 +15,8 @@ module top
     EXECUTE=4'd6,
     MEM = 4'd7,
     WRITEBACK = 4'd8,
-    IDLE=4'd9
+    IDLE=4'd9,
+    JUMP= 4'd10
 )
 (
     input  clk,
@@ -39,12 +40,22 @@ module top
 
     logic [63:0] pc;
     logic [63:0] _pc;
+    logic [63:0] cur_pc;
+    logic [63:0] _cur_pc;
 
     //For stalls
     reg [31:0] stall_instr;
     reg [31:0] _stall_instr;
     reg [3:0] stallstate;
     reg [3:0] _stallstate;
+
+    //For jumps
+    reg jumpbit;
+    reg _jumpbit;
+    reg [31:0] jump_to_addr;
+    reg [31:0] _jump_to_addr;
+    reg [3:0] index_from_pc;
+    reg [3:0] _index_from_pc;
 
     //The index is the register.
     // [32] = Is written to; [31:0] = The instruction writing. 
@@ -394,6 +405,7 @@ module top
                     end
                  end
             GETINSTR: begin
+                    // After fetch, instr_index = 0
                     if(getinstr_ready == 1) begin
                         if(cache == 1) begin
                             IF_cache_bus_respack = 1;
@@ -405,29 +417,49 @@ module top
                         _instr_before_fetch = 0;
                         //set this bit to 0 until fetch again.
                         _getinstr_ready = 0;
-                    end
 
-                    //GOOD FOR NOW
-                    _instr = instrlist[instr_index];
-                    //Get more instructions
-                    next_state = GETINSTR;
-                    _instr_index = instr_index + 1;
+                        if(jumpbit) begin
+                            _jumpbit = 0;
+                            _instr_index = index_from_pc;
+                        end else begin
+                            _instr_index = 0;
+                        end
+                        _instr = instrlist[_instr_index];
+                        _cur_pc = pc;
+                        next_state = GETINSTR;
+                        
+                        if(_instr == 32'b0) begin
+                            _last_instr = {1'b0,instr};
+                            next_state = IDLE;
+                        end
+                    end
+                    // instr_index = 1,2,... 
+                    else begin
+			_instr_index = instr_index + 1;
+                        if(_instr_index >= 16) begin
+                            //Stall and go fetch more.
+                            next_state = FETCH;
+                            _pc = pc + 64;
+
+                            _instr_before_fetch = _instr;
+                        end else begin
+
+                            _instr = instrlist[_instr_index];
+                            _cur_pc = cur_pc + 4;
+                            next_state = GETINSTR;
+                            if(_instr == 32'b0) begin
+                                _last_instr = {1'b0,instr}; //this is the instr before this.
+                                next_state = IDLE;
+                            end
+                        end
+                    end
                     //Start decode.
                     _DECODE_state = DECODE;
-                        
-                    //THE END
-                    if(_instr == 32'b0) begin
-                        _last_instr = {1'b0,instr}; //The instr before this.
-                        next_state = IDLE;
-                    end else if(_instr_index >= 16) begin
-                        next_state = FETCH;
-                        _pc = pc + 64;
-                        _instr_index = 0;
-
-                        //Stall
-                        _instr_before_fetch = _instr;
-                    end
                 end
+            JUMP: if(jumpbit) begin
+                      _pc = jump_to_addr - jump_to_addr%64; //align by 64.
+                      next_state = FETCH;
+                  end
             IDLE: if(last_instr[32] == 1) begin
                       $finish;
                   end
@@ -468,6 +500,23 @@ module top
 
             _EXECUTE_state = EXECUTE;
 
+            //Detect branch //TODO auipc U type
+         //   if(ID_instr_type == `UJTYPE) begin
+                //Unconditional Branch
+                _jumpbit = 1;
+                _jump_to_addr = ID_immediate;
+                _index_from_pc = (ID_immediate % 64)/4;
+                //next_state = JUMP;
+
+                //Then stall
+
+                //I also need to set $1 to be that immediate value.
+                
+          /*      
+            end else if (ID_instr_type == `SBTYPE) begin
+              //Conditional branch.
+            end
+*/
             //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
             if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
                 _stall_instr = ID_instr;
@@ -674,7 +723,7 @@ module top
                 //TODO: store each instruction's pc address into instr_list, and pull it back out to feed into decode
                 //	potential idea: use pc - 8*instr_count to get the address of the instruction
                 //INPUTS
-                .clk(clk), .instruction(instr), .cur_pc(pc),
+                .clk(clk), .instruction(instr), .cur_pc(cur_pc),
 
                 //OUTPUTS
                 .rd(_ID_rd), .rs1(_ID_rs1), .rs2(_ID_rs2), 
@@ -720,6 +769,7 @@ module top
             instr <= 64'h0;
             fetch_count <= 0;
             instr_index <= 0;
+            cur_pc <= entry;
             MEM_status <= 0;
             MEM_ptr <= 0;
             MEM_read_value <= 0;
@@ -755,6 +805,7 @@ module top
         if(_stallstate < GETINSTR) begin
         instr <= _instr;
         instr_index <= _instr_index;
+        cur_pc <= _cur_pc;
         end
         
         DECODE_state <= _DECODE_state;
@@ -794,6 +845,9 @@ module top
 
         RD_rs1 <= _RD_rs1;
         RD_rs2 <= _RD_rs2;
+        jump_to_addr <= _jump_to_addr;
+        jumpbit <= _jumpbit;
+        index_from_pc <= _index_from_pc;
         end
 
         if(_stallstate < EXECUTE) begin
