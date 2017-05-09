@@ -392,21 +392,21 @@ module decoder
 					if(i_imm == 0 && rd == 0 && rs1 == 1) begin
 						//pseudo-instruction for "jalr x0, x1, 0"
 						$display("ret");
-						alu_op = `JUMP_UNCOND;
+						alu_op = `ADD;
 					end
 					else if(i_imm == 0 && rd == 0) begin
 						//pseudo-instruction for "jalr x0, rs1, 0"
 						$display("jr $%d", rs1);
-						alu_op = `JUMP_UNCOND;
+						alu_op = `ADD;
 					end
 					else if(i_imm == 0 && rd == 1) begin
 						//pseudo-instruction for "jalr x1, rs1, 0"
 						$display("jalr $%d", rs1);
-						alu_op = `JUMP_UNCOND;
+						alu_op = `ADD;
 					end
 					else begin
 						$display("jalr $%d, $%d", rd, rs1);
-						alu_op = `JUMP_UNCOND;
+						alu_op = `ADD;
 					end
 					immediate = i_imm + 4;
 					reg_write = 1;
