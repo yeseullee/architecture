@@ -1,4 +1,3 @@
-`include "Sysbus.defs"
 module taken_pred
 	#(
 	  BTB_SIZE = 32,

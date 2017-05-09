@@ -11,12 +11,11 @@
 #define INIT_STACK_OFFSET         (4*MEGA)
 #define INIT_STACK_POINTER        (RAM_SIZE - INIT_STACK_OFFSET)
 
-#define be32tole(x)       (  \
-	  ((x & 0xFFU) << 24)    \
-	| ((x>>8 & 0xFFU) << 16) \
-	| ((x>>16 & 0xFFU) << 8) \
-	|  (x>>24 & 0xFFU))
-	
+/** Current simulation time */
+double sc_time_stamp() {
+    return System::sys->ticks;
+}
+
 int main(int argc, char* argv[]) {
 	Verilated::commandArgs(argc, argv);
 
@@ -24,34 +23,31 @@ int main(int argc, char* argv[]) {
 	if (argc > 0) ramelf = argv[1];
 
 	Vtop top;
-	System sys(&top, 1*GIGA, ramelf, ps_per_clock);
+	System sys(&top, RAM_SIZE, ramelf, argc-1, argv+1, 500);
 
-	// build the system and load the image
-	char *ram = (char *)sys.get_ram_address();
-	
 	// (argc, argv) sanity check
 	cerr << "===== Printing arguments of the program..." << endl;
 	for (int j = 0; j <= argc-1; j++) {
-		unsigned long guest_addr = INIT_STACK_POINTER + 16 * 4 + j * sizeof(uint32_t);
-		uint32_t be_val = *(uint32_t *)(ram + guest_addr);
-		uint32_t val = be32tole(be_val);
-		
+		unsigned long guest_addr = top.stackptr + j * sizeof(uint64_t);
+		uint64_t val = *(uint64_t *)(sys.ram_virt + guest_addr);
+
 		if (0 == j) {
 			cerr << dec << "== argc: " << val << endl;
 		} else {
-			char *arg_ptr = (char *)(ram + val);
+			char *arg_ptr = sys.ram_virt + val;
 			char *arg_ptr1 = arg_ptr;
 			while (*arg_ptr++);
 			unsigned len = arg_ptr - arg_ptr1;
 			cerr << dec << "== argv[" << j-1 << "]: ";
+			do_ecall(1/*__NR_write*/, 2, val, len-1, 0, 0, 0, 0, (long long*)&arg_ptr/*dummy*/);
 			cerr << endl;
 		}
 	}
 	cerr << "==========================================" << endl;
 
-	VerilatedVcdC* tfp = NULL;
 #if VM_TRACE
 	// If verilator was invoked with --trace
+	VerilatedVcdC* tfp = NULL;
 	Verilated::traceEverOn(true);
 	VL_PRINTF("Enabling waves...\n");
 	tfp = new VerilatedVcdC;
@@ -61,17 +57,20 @@ int main(int argc, char* argv[]) {
 	tfp->spTrace()->set_time_resolution("1 ps");
 	// Open the dump file
 	tfp->open ("../trace.vcd");
+#define TFP_DUMP if (tfp) tfp->dump(sys.ticks);
+#else
+#define TFP_DUMP
 #endif
 
 #define TICK() do {                    \
 		top.clk = !top.clk;                \
 		top.eval();                        \
-		if (tfp) tfp->dump(main_time);     \
-		main_time += ps_per_clock/4;       \
+		TFP_DUMP                           \
+		sys.ticks += sys.ps_per_clock/4;   \
 		sys.tick(top.clk);                 \
 		top.eval();                        \
-		if (tfp) tfp->dump(main_time);     \
-		main_time += ps_per_clock/4;       \
+		TFP_DUMP                           \
+		sys.ticks += sys.ps_per_clock/4;   \
 	} while(0)
 
 	top.reset = 1;
@@ -84,7 +83,7 @@ int main(int argc, char* argv[]) {
 	const char* SHOWCONSOLE = getenv("SHOWCONSOLE");
 	if (SHOWCONSOLE?(atoi(SHOWCONSOLE)!=0):0) sys.console();
 
-	while (main_time/ps_per_clock < 2000*KILO && !Verilated::gotFinish()) {
+	while (sys.ticks/sys.ps_per_clock < 2000*GIGA && !Verilated::gotFinish()) {
 		TICK();
 	}
 

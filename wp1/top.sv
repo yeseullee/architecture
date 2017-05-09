@@ -23,7 +23,9 @@ module top
 
     // 64-bit address of the program entry point
     input  [63:0] entry,
-
+  input  [63:0] stackptr,
+  input  [63:0] satp,
+ 
     // interface to connect to the bus
     //going to memory
     output bus_reqcyc, //I should set it to 1 for requesting to read instr

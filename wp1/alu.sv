@@ -1,4 +1,3 @@
-`include "Sysbus.defs"
 `include "Alu.defs"
 module alu
 	(

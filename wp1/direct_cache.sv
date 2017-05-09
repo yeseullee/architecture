@@ -1,4 +1,3 @@
-`include "Sysbus.defs"
 module direct_cache
 	#(
 		//Memory bus constants
