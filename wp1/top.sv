@@ -377,6 +377,10 @@ module top
                     if(cache == 1) begin
                         if(fetch_count == 16) begin
                             IF_cache_bus_respack = 1;
+                            _fetch_count = fetch_count + 1;
+                        end
+                        else if(fetch_count == 17) begin
+                            IF_cache_bus_respack = 1;
                             // For the first instr after fetch.
                             next_state = GETINSTR;
                             _getinstr_ready = 1;
@@ -392,6 +396,9 @@ module top
                             end
                             else if(IF_cache_bus_resp == 0) begin
                                 _fetch_count = fetch_count + 1;
+				if(fetch_count == 14) begin
+					_fetch_count = fetch_count + 2;
+				end
                             end
                             IF_cache_bus_respack = 1;
                             next_state = WAIT;
