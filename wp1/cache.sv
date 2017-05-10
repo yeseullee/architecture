@@ -72,6 +72,8 @@ module cache
 	logic [3:0] next_state;
 	logic [DATA_LENGTH-1:0] content;
 	logic [DATA_LENGTH-1:0] _content;
+	logic invalid;
+	logic _invalid;
 
 	//cache management-related variables
 	logic cache_type = 0; //set to 0 for direct, 1 for set
@@ -120,7 +122,13 @@ module cache
 					_req_addr = p_bus_req;
 					_req_tag = p_bus_reqtag;
 					next_ptr = 0;
-					if(p_bus_reqcyc == 1) begin
+					if(m_bus_respcyc == 1 && m_bus_resptag == 3'h800) begin
+						//if an address needs to be invalidated
+						_invalid = 1;
+						_req_addr = m_bus_resp;
+						next_state = LOOKUP;
+					end
+					else if(p_bus_reqcyc == 1) begin
 						next_state = ACKPROC;
 					end
 					else begin
@@ -197,9 +205,18 @@ module cache
 					if(cache_type == 0) begin //direct cache
 						if(valid_bits[dir_index] == 1) begin
 							if(dir_cache_tags[dir_index] == dir_tag) begin
+								//cache hit on invalidate request
+								if(invalid == 1) begin
+									_valid_bits[dir_index] = 0;
+									if(req_addr % 64 != 0) begin
+										_valid_bits[dir_index + 1] = 0;
+									end
+									next_state = ACCEPT;
+									_invalid = 0;
+								end
 
 								//cache hit on write (invalidate data)
-								if(req_tag[12] == `SYSBUS_WRITE) begin
+								else if(req_tag[12] == `SYSBUS_WRITE) begin
 									_valid_bits[dir_index] = 0;
 									next_state = UPDATE;
 								end
@@ -243,9 +260,27 @@ module cache
 						for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
 							if(valid_bits[(2*set_index)+i] == 1) begin
 								if(set_cache_tags[(2*set_index)+i] == set_tag) begin
+									//cache hit on invalidate request
+									if(invalid == 1) begin
+										_valid_bits[(2*set_index)+i] = 0;
+										if(req_addr % 64 != 0) begin
+											if(valid_bits[2*set_index] == 1) begin
+												if(set_cache_tags[2*set_index] == set_tag) begin
+													_valid_bits[2*set_index] = 0;
+												end
+											end
+											else if(valid_bits[(2*set_index)+1] == 1) begin
+												if(set_cache_tags[(2*set_index)+1] == set_tag) begin
+													_valid_bits[(2*set_index)+1] = 0;
+												end
+											end
+										end
+										next_state = ACCEPT;
+										_invalid = 0;
+									end
 
 									//cache hit on write (invalidate data)
-									if(req_tag[12] == 0) begin
+									else if(req_tag[12] == 0) begin
 										_valid_bits[(2*set_index)+i] = 0;
 										next_state = UPDATE;
 									end
@@ -469,6 +504,7 @@ module cache
 			dirty_bits <= 0;
 			valid_bits <= 0;
 			recent_bits <= 0;
+			invalid <= _invalid;
 			for(int i = 0; i < NUM_CACHE_LINES; i++) begin
 				cache_data[i] <= 0;
 				dir_cache_tags[i] <= 0;
@@ -486,6 +522,7 @@ module cache
 		dirty_bits <= _dirty_bits;
 		valid_bits <= _valid_bits;
 		recent_bits <= _recent_bits;
+		invalid <= _invalid;
 		for(int i = 0; i < NUM_CACHE_LINES; i++) begin
 			cache_data[i] <= _cache_data[i];
 			dir_cache_tags[i] <= _dir_cache_tags[i];
