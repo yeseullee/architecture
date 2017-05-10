@@ -517,7 +517,7 @@ module top
                         _instr_before_fetch = 0;
                         //set this bit to 0 until fetch again.
                         _getinstr_ready = 0;
-                   
+                        _stallstate = 0;
                         _nop_state = 0;
                         if(jumpbit) begin
                             _jumpbit = 0;
