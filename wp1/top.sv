@@ -483,7 +483,7 @@ module top
                       next_state = FETCH;
                   end
             IDLE: if(last_instr[32] == 1) begin
-                     // $finish;
+                      $finish;
                   end
         endcase
     end
@@ -530,32 +530,29 @@ module top
                 //Then stall
                // _nop_state = GETINSTR; 
                 
-            //Conditional branch.
-            end else begin /////
+            end 
 
-                //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
-                if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
-                    _stall_instr = ID_instr;
-                    _stallstate = READ;
-                end else if (writinglist[ID_rs2][32] && writinglist[ID_rs2][31:0] != ID_instr) begin
-                    _stall_instr = ID_instr;
-                    _stallstate = READ;
+            //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
+            if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
+                _stall_instr = ID_instr;
+                _stallstate = READ;
+            end else if (writinglist[ID_rs2][32] && writinglist[ID_rs2][31:0] != ID_instr) begin
+                _stall_instr = ID_instr;
+                _stallstate = READ;
+            end
+            //Otherwise, (not stalling)
+            else begin
+                //set write reg in writinglist.
+                if(ID_write_sig) begin
+                    _writinglist[ID_rd] = {1'b1,ID_instr};
                 end
-                //Otherwise, (not stalling)
-                else begin
-                    //set write reg in writinglist.
-                    if(ID_write_sig) begin
-                        _writinglist[ID_rd] = {1'b1,ID_instr};
-                    end
-                    //If both registers are free to go, then no more stalling.
-                    //This checks if this stage initiated the stall.
-                    if(stall_instr == ID_instr && stall_instr != 0) begin
-                        _stallstate = 0;
-                        _stall_instr = 0;
-                   end
+                //If both registers are free to go, then no more stalling.
+                //This checks if this stage initiated the stall.
+                if(stall_instr == ID_instr && stall_instr != 0) begin
+                    _stallstate = 0;
+                    _stall_instr = 0;
                 end
-
-            end ///// Else ends.
+            end
 
         end
         if(EXECUTE_state == EXECUTE) begin
