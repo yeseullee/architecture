@@ -60,6 +60,8 @@ module top
     reg [3:0] _index_from_pc;
     reg [3:0] nop_state;
     reg [3:0] _nop_state;
+    reg jumpNOW;
+    reg _jumpNOW;
 
     //The index is the register.
     // [32] = Is written to; [31:0] = The instruction writing. 
@@ -449,11 +451,12 @@ module top
                             _jump_to_addr = 0;
                             _index_from_pc = 0;
                             _instr_index = index_from_pc;
+                            _cur_pc = index_from_pc*4 + pc;
                         end else begin
                             _instr_index = 0;
+                            _cur_pc = pc;
                         end
                         _instr = instrlist[_instr_index];
-                        _cur_pc = pc;
                         next_state = GETINSTR;
                         
                         if(_instr == 32'b0) begin
@@ -488,6 +491,8 @@ module top
             JUMP: if(jumpbit) begin
                       _pc = jump_to_addr - jump_to_addr%64; //align by 64.
                       next_state = FETCH;
+                      _jumpNOW = 0;
+                      _WRITEBACK_state = 0;
                   end
             IDLE: if(last_instr[32] == 1) begin
                       $finish;
@@ -529,15 +534,6 @@ module top
             _RD_isBranch = ID_isBranch;
 
             _EXECUTE_state = EXECUTE;
-
-            //Detect Unconditional branch 
-            if(ID_isBranch == `UNCOND) begin
-                //Unconditional Branch
-                _jumpbit = 1;
-                //Then stall
-               // _nop_state = GETINSTR; 
-                
-            end 
 
             //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
             if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
@@ -597,6 +593,7 @@ module top
                 end
             end else if(EX_isBranch == `UNCOND) begin
                 //Unconditional branch.
+                _jumpbit = 1;
                 _jump_to_addr = EX_alu_result;
                 _index_from_pc = (EX_alu_result % 64)/4;
                 // Should jump after WB... to store the addr to $rd.
@@ -766,8 +763,9 @@ module top
             end
 
             //This is for jumping
-            if(jumpbit && state > WAIT) begin
-                next_state = JUMP;
+            if(jumpbit && (state > WAIT) && MEM_instr != 0) begin
+                _jumpNOW =1;
+                //next_state = JUMP;
               //  _nop_state = READ;
             end
             //This is for calling nop after the last write back (before new fetch).
@@ -856,7 +854,13 @@ module top
 
         //If it needs to get more instructions.
         //set IF registers
-        state <= next_state;
+        jumpNOW <= _jumpNOW;
+
+        if(_jumpNOW) begin
+            state <= JUMP;
+        end else begin
+            state <= next_state;
+        end
         pc <= _pc;
         fetch_count <= _fetch_count;
         getinstr_ready <= _getinstr_ready;
