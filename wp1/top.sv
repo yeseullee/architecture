@@ -536,12 +536,11 @@ module top
                             _last_instr = {1'b0,instr};
                             next_state = IDLE;
                         end
-                       /* if(_instr == 32'h00008067) begin
-                            _last_instr = {1'b1, _instr};
+/*                        if(_instr == 32'h00008067) begin
+                            _last_instr = {1'b0, _instr};
                             next_state = IDLE;
                         end
 */
-
                         for (int i = 0; i < 32; i++) begin
                             _writinglist[i] = 0;
                         end
@@ -565,12 +564,12 @@ module top
                                 _last_instr = {1'b0,instr}; //this is the instr before this.
                                 next_state = IDLE;
                             end
-                          
+/*                          
                             if(_instr == 32'h00008067) begin
-                                _last_instr = {1'b1, _instr};
+                                _last_instr = {1'b0, _instr};
                                 next_state = IDLE;
                             end
-                        end
+*/                        end
                     end
                     //Start decode.
                     _DECODE_state = DECODE;

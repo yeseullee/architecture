@@ -402,19 +402,24 @@ module decoder
 						//pseudo-instruction for "jalr x0, rs1, 0"
 						$display("jr $%d", rs1);
 						alu_op = `ADD;
+
+                                                isBranch = `UNCOND;
 					end
 					else if(i_imm == 0 && rd == 1) begin
 						//pseudo-instruction for "jalr x1, rs1, 0"
 						$display("jalr $%d", rs1);
 						alu_op = `ADD;
+ 
+                                                isBranch = `UNCOND;
 					end
 					else begin
 						$display("jalr $%d, $%d", rd, rs1);
 						alu_op = `ADD;
+
+                                                isBranch = `UNCOND;
 					end
 					immediate = i_imm + 4;
 					reg_write = 1;
-                                        isBranch = `UNCOND;
 					instr_type = `ITYPE;
 				end
 			7'b0000011: begin //load
