@@ -589,6 +589,7 @@ module top
                     _jumpbit = 1;  
                     _jump_to_addr = EX_immediate;
                     _index_from_pc = (EX_immediate % 64)/4;
+                    _instr_before_fetch = EX_instr;
                     _nop_state = READ;
                     // Should jump after WB... to store the addr to $rd.
                 end else begin
@@ -599,6 +600,7 @@ module top
                 _jump_to_addr = EX_alu_result;
                 _index_from_pc = (EX_alu_result % 64)/4;
                 // Should jump after WB... to store the addr to $rd.
+                _instr_before_fetch = EX_instr;
                 _nop_state = READ;
 
             end
@@ -764,9 +766,9 @@ module top
             end
 
             //This is for jumping
-            if(jumpbit) begin
+            if(jumpbit && state > WAIT) begin
                 next_state = JUMP;
-                //_nop_state = WRITEBACK;
+              //  _nop_state = READ;
             end
             //This is for calling nop after the last write back (before new fetch).
             if(instr_before_fetch == MEM_instr && instr_before_fetch != 0) begin
