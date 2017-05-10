@@ -101,6 +101,8 @@ module cache
 	//variables used in RECEIVE and RESPOND to break up content into 8 64-bit blocks
 	logic [8:0] ptr;
 	logic [8:0] next_ptr;
+	logic [8:0] zcounter;
+	logic [8:0] _zcounter;
 
 
 	//NOTE: multiple always comb blocks used to keep verilator happy
@@ -289,20 +291,33 @@ module cache
 					if(ptr == 8) begin
 						next_state = UPDATE;
 						next_ptr = 0;
+						_zcounter = 0;
 					end
 					else if(m_bus_respcyc == 1) begin
 						m_bus_respack = 1;
 						//_content[(DATA_LENGTH-1)-(64*ptr):(DATA_LENGTH-1)-(64*(ptr+1)] = m_bus_resp;
 						_content[64*ptr +: 64] = m_bus_resp;
 						next_ptr = ptr;
-						if(m_bus_resp != _content[64*(ptr-1) +: 64] || m_bus_resp == 0) begin
+						if(m_bus_resp != _content[64*(ptr-1) +: 64]) begin// || m_bus_resp == 0) begin
 							next_ptr = ptr + 1;
+						end
+						else if(m_bus_resp == 0) begin
+							if(zcounter >= 2) begin
+								_zcounter = 0;
+								next_ptr = ptr + 1;
+							end
+							else begin
+								_zcounter = zcounter + 1;
+							end
 						end
 						next_state = RECEIVE;
 					end
 					else begin
 					   	m_bus_respack = 0;
 						next_state = RECEIVE;
+						if(zcounter != 0) begin
+							_zcounter = zcounter + 1;
+						end
 					end
 				end
 			UPDATE: begin
@@ -450,6 +465,7 @@ module cache
 			req_tag <= 0;
 			content <= 0;
 			ptr <= 0;
+			zcounter <= 0;
 			dirty_bits <= 0;
 			valid_bits <= 0;
 			recent_bits <= 0;
@@ -466,6 +482,7 @@ module cache
 		req_tag <= _req_tag;
 		content <= _content;
 		ptr <= next_ptr;
+		zcounter <= _zcounter;
 		dirty_bits <= _dirty_bits;
 		valid_bits <= _valid_bits;
 		recent_bits <= _recent_bits;
