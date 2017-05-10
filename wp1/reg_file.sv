@@ -18,7 +18,17 @@ module reg_file
 	  
 	  // outputs
 	  output [63:0] rs1_val,
-	  output [63:0] rs2_val
+	  output [63:0] rs2_val,
+
+	  //output registers used for ecall
+	  output [63:0] a0,
+	  output [63:0] a1,
+	  output [63:0] a2,
+	  output [63:0] a3,
+	  output [63:0] a4,
+	  output [63:0] a5,
+	  output [63:0] a6,
+	  output [63:0] a7
 	);
 
 	//setup registers
@@ -34,6 +44,14 @@ module reg_file
 		//set outputs
 		rs1_val = registers[rs1];
 		rs2_val = registers[rs2];
+		a0 = registers[10];
+		a1 = registers[11];
+		a2 = registers[12];
+		a3 = registers[13];
+		a4 = registers[14];
+		a5 = registers[15];
+		a6 = registers[16];
+		a7 = registers[17];
 		//write_ack = 0;
 
 		//write to indicated wire if requested
