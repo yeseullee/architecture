@@ -323,7 +323,7 @@ module cache
 				end
 			RECEIVE: begin
 					//receive reponse from memory if present
-					if(ptr == 8) begin
+					if(ptr == 8 || (ptr == 7 && zcounter > 2)) begin
 						next_state = UPDATE;
 						next_ptr = 0;
 						_zcounter = 0;
