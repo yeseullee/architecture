@@ -1,7 +1,7 @@
 .PHONY: all run clean submit
 
-RUNELF= /shared/cse502/tests/wp2/prog3.o
-#/home/yeslee/merging/architecture/wp1/branch_test.o
+RUNELF= /shared/cse502/tests/project/prog1
+# /home/yeslee/merging/architecture/wp1/branch_test.o
 
 #/shared/cse502/tests/wp2/prog3.o
 

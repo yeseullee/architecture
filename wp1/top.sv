@@ -536,6 +536,15 @@ module top
                             _last_instr = {1'b0,instr};
                             next_state = IDLE;
                         end
+                       /* if(_instr == 32'h00008067) begin
+                            _last_instr = {1'b1, _instr};
+                            next_state = IDLE;
+                        end
+*/
+
+                        for (int i = 0; i < 32; i++) begin
+                            _writinglist[i] = 0;
+                        end
                     end
                     // instr_index = 1,2,... 
                     else begin
@@ -554,6 +563,11 @@ module top
                             next_state = GETINSTR;
                             if(_instr == 32'b0) begin
                                 _last_instr = {1'b0,instr}; //this is the instr before this.
+                                next_state = IDLE;
+                            end
+                          
+                            if(_instr == 32'h00008067) begin
+                                _last_instr = {1'b1, _instr};
                                 next_state = IDLE;
                             end
                         end
@@ -619,7 +633,7 @@ module top
             //Otherwise, (not stalling)
             else begin
                 //set write reg in writinglist.
-                if(ID_write_sig) begin
+                if(ID_write_sig && ID_rd != 0) begin
                     _writinglist[ID_rd] = {1'b1,ID_instr};
                 end
                 //If both registers are free to go, then no more stalling.
@@ -970,9 +984,20 @@ module top
 
         nop_state <= _nop_state;
 
-        for (int i = 0; i < 32; i++) begin
-            writinglist[i] <= _writinglist[i];
+        if(_nop_state == WRITEBACK) begin 
+
+            for (int i = 0; i < 32; i++) begin
+                writinglist[i] <= 0;
+            end
+
+        end else begin
+
+            for (int i = 0; i < 32; i++) begin
+                writinglist[i] <= _writinglist[i];
+            end
+
         end
+
         //
 
         //If it needs to get more instructions.
