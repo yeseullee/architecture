@@ -824,6 +824,13 @@ module top
             else begin
                 _MEM_value = EX_alu_result;
                 _WRITEBACK_state = WRITEBACK;
+
+            end
+
+            if(_MEM_ecall == 1) begin
+                _MEM_write_reg = 10;
+                do_ecall(_MEM_a7, _MEM_a0, _MEM_a1, _MEM_a2, _MEM_a3, _MEM_a4, _MEM_a5, _MEM_a6, _MEM_value);
+                _MEM_write_sig = 1;
             end
 
             if(stall_instr == _MEM_instr && stallstate < MEM && stall_instr != 0) begin
@@ -852,9 +859,7 @@ module top
             _WB_a7 = MEM_a7;
 
             if(_WB_ecall == 1) begin
-                _WB_write_reg = 10;
-                do_ecall(_WB_a7, _WB_a0, _WB_a1, _WB_a2, _WB_a3, _WB_a4, _WB_a5, _WB_a6, _WB_write_val);
-                _WB_write_sig = 1;
+                _nop_state = WRITEBACK;
             end
 
             if(_WB_mem_access == `MEM_READ) begin
