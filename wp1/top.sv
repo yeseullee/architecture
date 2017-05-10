@@ -24,8 +24,8 @@ module top
 
     // 64-bit address of the program entry point
     input  [63:0] entry,
-  input  [63:0] stackptr,
-  input  [63:0] satp,
+    input  [63:0] stackptr,
+    input  [63:0] satp,
  
     // interface to connect to the bus
     //going to memory
@@ -387,8 +387,11 @@ module top
                             _instrlist[fetch_count + 1] = IF_cache_bus_resp[63:32];
 
                             // For next time,
-                            if(IF_cache_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]} || IF_cache_bus_resp == 0) begin
+                            if(IF_cache_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]}) begin// || IF_cache_bus_resp == 0) begin
                                 _fetch_count = fetch_count + 2;
+                            end
+                            else if(IF_cache_bus_resp == 0) begin
+                                _fetch_count = fetch_count + 1;
                             end
                             IF_cache_bus_respack = 1;
                             next_state = WAIT;
@@ -480,7 +483,7 @@ module top
                       next_state = FETCH;
                   end
             IDLE: if(last_instr[32] == 1) begin
-                      $finish;
+                     // $finish;
                   end
         endcase
     end
