@@ -63,6 +63,9 @@ module top
     reg jumpNOW;
     reg _jumpNOW;
 
+    reg firstFETCH;
+    reg _firstFETCH;
+
     //The index is the register.
     // [32] = Is written to; [31:0] = The instruction writing. 
     reg [32:0] writinglist[31:0];
@@ -210,7 +213,7 @@ module top
     logic [63:0] _EX_a7;
 
     //MEMORY WIRES & REGISTERS
-    logic [63:0] MEM_alu_result;
+    //logic [63:0] MEM_alu_result;
     logic [63:0] _MEM_alu_result;
     logic [63:0] MEM_value;
     logic [63:0] _MEM_value;
@@ -414,6 +417,12 @@ module top
         _pc = pc;
         _instr = instr;
         _fetch_count = fetch_count;
+
+        if(firstFETCH) begin
+        _index_from_pc = index_from_pc;
+        _jumpbit = jumpbit;
+        _firstFETCH = 0;
+        end
 
         _MEM_status = 0;
         MEM_next_ptr = MEM_ptr;
@@ -704,8 +713,11 @@ module top
                 // Should jump after WB... to store the addr to $rd.
                 _instr_before_fetch = EX_instr;
                 _nop_state = READ;
+                _MEM_value = EX_pc + 4;
 
-            end
+            end else begin
+                _MEM_value = EX_alu_result;
+            end 
 
             //Passing these as registers to WB.
             _MEM_alu_result = EX_alu_result;
@@ -846,14 +858,13 @@ module top
                 endcase
             end
             else begin
-                _MEM_value = EX_alu_result;
                 _WRITEBACK_state = WRITEBACK;
 
             end
 
             if(_MEM_ecall == 1) begin
                 _MEM_write_reg = 10;
-                do_ecall(_MEM_a7, _MEM_a0, _MEM_a1, _MEM_a2, _MEM_a3, _MEM_a4, _MEM_a5, _MEM_a6, _MEM_value);
+                do_ecall(_MEM_a7, _MEM_a0, _MEM_a1, _MEM_a2, _MEM_a3, _MEM_a4, _MEM_a5, _MEM_a6, _MEM_a0);
                 _MEM_write_sig = 1;
             end
 
@@ -871,7 +882,6 @@ module top
             _WB_ecall = MEM_ecall;
             _WB_mem_access = MEM_access;
             _WB_mem_size = MEM_size;
-            _WB_alu_result = MEM_alu_result;
             _WB_rs2_value = MEM_rs2_val;
             _WB_a0 = MEM_a0;
             _WB_a1 = MEM_a1;
@@ -887,7 +897,7 @@ module top
             end
 
             if(_WB_mem_access == `MEM_READ) begin
-                do_pending_write(_WB_alu_result, _WB_rs2_value, _WB_mem_size);
+                do_pending_write(_WB_write_val, _WB_rs2_value, _WB_mem_size);
             end
 
             if((stall_instr == _WB_instr) && (stallstate < WRITEBACK) && stall_instr != 0) begin
@@ -973,8 +983,10 @@ module top
 
     always_ff @ (posedge clk) begin
         if(reset) begin //when first starting.
-            pc <= entry;
+            pc <= entry - entry%64;
+            index_from_pc <= (entry%64)/4;
             cur_pc <= entry;
+            jumpbit <= 1;
             state <= INIT;
             instr <= 64'h0;
             fetch_count <= 0;
@@ -982,10 +994,13 @@ module top
             MEM_status <= 0;
             MEM_ptr <= 0;
             MEM_read_value <= 0;
+            firstFETCH <= 1;
             for (int i = 0; i < 16; i++) begin
                 instrlist[i] <= 32'b0;
             end  
         end else begin /////////
+
+        firstFETCH <= _firstFETCH;
 
         // The only registers written to no matter what.
         stallstate <= _stallstate;
@@ -1013,6 +1028,7 @@ module top
         //If it needs to get more instructions.
         //set IF registers
         jumpNOW <= _jumpNOW;
+
 
         if(_jumpNOW) begin
             state <= JUMP;
@@ -1200,7 +1216,6 @@ module top
         MEM_instr <= 0;
         MEM_ptr <= 0;
         MEM_read_value <= 0;
-        MEM_alu_result <= 0;
         MEM_access <= 0;
         MEM_size <= 0;
         MEM_rs2_val <= 0;
@@ -1226,7 +1241,6 @@ module top
         MEM_instr <= _MEM_instr;
         MEM_ptr <= MEM_next_ptr;
         MEM_read_value <= _MEM_read_value;
-        MEM_alu_result <= _MEM_alu_result;
         MEM_access <= _MEM_access;
         MEM_size <= _MEM_size;
         MEM_rs2_val <= _MEM_rs2_val;
