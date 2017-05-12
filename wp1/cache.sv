@@ -335,6 +335,9 @@ module cache
 						next_ptr = ptr;
 						if(m_bus_resp != _content[64*(ptr-1) +: 64]) begin// || m_bus_resp == 0) begin
 							next_ptr = ptr + 1;
+							if(zcounter > 0) begin
+								_zcounter = 0;
+							end
 						end
 						else if(m_bus_resp == 0) begin
 							if(zcounter >= 2) begin
