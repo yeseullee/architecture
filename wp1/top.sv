@@ -253,12 +253,14 @@ module top
     logic [63:0] MEM_a7;
     logic [63:0] _MEM_a7;
     //memory stage variables
-    logic [1:0] MEM_status;
-    logic [1:0] _MEM_status;
+    logic [2:0] MEM_status;
+    logic [2:0] _MEM_status;
     logic [8:0] MEM_ptr;
     logic [8:0] MEM_next_ptr;
     logic [511:0] MEM_read_value;
     logic [511:0] _MEM_read_value;
+    logic [63:0] MEM_str_value;
+    logic [63:0] _MEM_str_value;
 
     //WB pass along
     logic [31:0] WB_instr; //For debuggin
@@ -423,10 +425,6 @@ module top
         _jumpbit = jumpbit;
         _firstFETCH = 0;
         end
-
-        _MEM_status = 0;
-        MEM_next_ptr = MEM_ptr;
-        _MEM_value = MEM_value;
 
         case(state)
             INIT: begin
@@ -603,6 +601,11 @@ module top
     end
 
     always_comb begin
+        _MEM_status = 0;
+        MEM_next_ptr = MEM_ptr;
+        _MEM_value = MEM_value;
+        _MEM_str_value = MEM_str_value;
+
         if(cache == 1) begin
             MEM_cache_bus_reqcyc = 0;
             MEM_cache_bus_respack = 0;
@@ -792,19 +795,19 @@ module top
                             if(_MEM_access == `MEM_READ) begin //load
                                 //Tload value from MEM_read_value to _MEM_value
                                 case(_MEM_size)
-                                        `MEM_BYTE: _MEM_value = {{56{MEM_read_value[MEM_ptr + 7]}}, MEM_read_value[MEM_ptr +: 8]};
-                                        `MEM_HALF: _MEM_value = {{48{MEM_read_value[MEM_ptr + 15]}}, MEM_read_value[MEM_ptr +: 16]};
-                                        `MEM_WORD: _MEM_value = {{32{MEM_read_value[MEM_ptr + 31]}}, MEM_read_value[MEM_ptr +: 32]};
-                                        `MEM_DOUBLE: _MEM_value = {MEM_read_value[MEM_ptr +: 64]};
-                                        `MEM_US_BYTE: _MEM_value = {56'b0, MEM_read_value[MEM_ptr +: 8]};
-                                        `MEM_US_HALF: _MEM_value = {48'b0, MEM_read_value[MEM_ptr +: 16]};
-                                        `MEM_US_WORD: _MEM_value = {32'b0, MEM_read_value[MEM_ptr +: 32]};
+                                        `MEM_BYTE: _MEM_str_value = {{56{MEM_read_value[MEM_ptr + 7]}}, MEM_read_value[MEM_ptr +: 8]};
+                                        `MEM_HALF: _MEM_str_value = {{48{MEM_read_value[MEM_ptr + 15]}}, MEM_read_value[MEM_ptr +: 16]};
+                                        `MEM_WORD: _MEM_str_value = {{32{MEM_read_value[MEM_ptr + 31]}}, MEM_read_value[MEM_ptr +: 32]};
+                                        `MEM_DOUBLE: _MEM_str_value = {MEM_read_value[MEM_ptr +: 64]};
+                                        `MEM_US_BYTE: _MEM_str_value = {56'b0, MEM_read_value[MEM_ptr +: 8]};
+                                        `MEM_US_HALF: _MEM_str_value = {48'b0, MEM_read_value[MEM_ptr +: 16]};
+                                        `MEM_US_WORD: _MEM_str_value = {32'b0, MEM_read_value[MEM_ptr +: 32]};
                                 endcase
                                 MEM_next_ptr = 0;
-                                _MEM_status = 0;
-                                _WRITEBACK_state = WRITEBACK; 
+                                _MEM_status = 4; 
                             end
                             else if(_MEM_access == `MEM_WRITE) begin //store
+                                _MEM_str_value = MEM_value;
                                 //modify _MEM_read_value using _MEM_alu_result
                                 case(_MEM_size)
                                     `MEM_BYTE: _MEM_read_value[MEM_ptr +: 8] = _MEM_rs2_val[7:0];
@@ -836,8 +839,7 @@ module top
                                     MEM_next_ptr = MEM_ptr + 1;
                                     if(MEM_ptr == 7) begin
                                         MEM_next_ptr = 0;
-                                        _MEM_status = 0;
-                                        _WRITEBACK_state = WRITEBACK; 
+                                        _MEM_status = 4; 
                                     end
                                 end
                             end
@@ -849,17 +851,34 @@ module top
                                     MEM_next_ptr = MEM_ptr + 1;
                                     if(MEM_ptr == 7) begin
                                         MEM_next_ptr = 0;
-                                        _MEM_status = 0;
-                                        _WRITEBACK_state = WRITEBACK; 
+                                        _MEM_status = 4;
                                     end
                                 end
                             end
+                        end
+		   4: begin
+                        //Can go on to the next stage NOW.
+                            _MEM_value = _MEM_str_value;
                         end
                 endcase
             end
             else begin
                 _WRITEBACK_state = WRITEBACK;
 
+            end
+
+            if(_MEM_access != `MEM_NO_ACCESS && _MEM_status != 4) begin
+                _stallstate = MEM;
+                _stall_instr = EX_instr;
+            end
+
+            if(_MEM_access != `MEM_NO_ACCESS && _MEM_status == 4)begin
+                if(stall_instr == EX_instr && stall_instr != 0) begin
+                    _stallstate = 0;
+                    _stall_instr = 0;
+                end
+                
+                _MEM_status = 0;
             end
 
             if(_MEM_ecall == 1) begin
@@ -1211,6 +1230,7 @@ module top
         //set MEM registers
         MEM_write_reg <= 0;
         MEM_value <= 0;
+        MEM_str_value <= 0;
         MEM_write_sig <= 0;
         MEM_status <= 0;
         MEM_instr <= 0;
@@ -1236,6 +1256,7 @@ module top
         //set MEM registers
         MEM_write_reg <= _MEM_write_reg;
         MEM_value <= _MEM_value;
+        MEM_str_value <= _MEM_str_value;
         MEM_write_sig <= _MEM_write_sig;
         MEM_status <= _MEM_status;
         MEM_instr <= _MEM_instr;
@@ -1256,6 +1277,14 @@ module top
         MEM_a6 <= _MEM_a6;
         MEM_a7 <= _MEM_a7;
         end
+        //If stalling because of mem stage ld/st...
+        else if(_MEM_access != `MEM_NO_ACCESS && _MEM_status != 4 && stall_instr == EX_instr && stall_instr != 0) begin
+            MEM_status <= _MEM_status;
+            MEM_read_value <= _MEM_read_value;
+            MEM_ptr <= MEM_next_ptr;
+            MEM_str_value <= _MEM_str_value;
+        end
+
         end
 
         if(_nop_state > WRITEBACK) begin
