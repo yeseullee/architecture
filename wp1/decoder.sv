@@ -397,6 +397,7 @@ module decoder
 						//pseudo-instruction for "jalr x0, x1, 0"
 						$display("ret");
 						alu_op = `ADD;
+                                                isBranch = `UNCOND;
 					end
 					else if(i_imm == 0 && rd == 0) begin
 						//pseudo-instruction for "jalr x0, rs1, 0"
@@ -418,7 +419,7 @@ module decoder
 
                                                 isBranch = `UNCOND;
 					end
-					immediate = i_imm + 4;
+					immediate = i_imm;
 					reg_write = 1;
 					instr_type = `ITYPE;
 				end

@@ -111,7 +111,8 @@ module top
     logic [1:0] _ID_ecall;
     logic [2:0] ID_isBranch;
     logic [2:0] _ID_isBranch;
-
+    logic [63:0] ID_pc;
+    logic [63:0] _ID_pc;
 
     //READ WIRES & REGISTERS  
     //Pass along REGISTERS (8)
@@ -144,6 +145,8 @@ module top
     logic [2:0] _RD_mem_size;
     logic [2:0] RD_isBranch;
     logic [2:0] _RD_isBranch;
+    logic [63:0] RD_pc;
+    logic [63:0] _RD_pc;
     //ECALL wires and registers
     logic [1:0] RD_ecall;
     logic [1:0] _RD_ecall;
@@ -184,6 +187,8 @@ module top
     logic [2:0] _EX_isBranch;
     logic [31:0] EX_immediate;
     logic [31:0] _EX_immediate;
+    logic [63:0] EX_pc;
+    logic [63:0] _EX_pc;
     //ECALL wires and registers
     logic [1:0] EX_ecall;
     logic [1:0] _EX_ecall;
@@ -223,6 +228,8 @@ module top
     logic [63:0] MEM_rs2_val;
     logic [2:0] MEM_isBranch;
     logic [2:0] _MEM_isBranch;
+    logic [63:0] MEM_pc;
+    logic [63:0] _MEM_pc;
     //ECALL wires and registers
     logic [1:0] MEM_ecall;
     logic [1:0] _MEM_ecall;
@@ -601,6 +608,7 @@ module top
         end
         if(DECODE_state == DECODE) begin
             _ID_instr = instr;
+            _ID_pc = cur_pc;
             _READ_state = READ;
         end
         if(READ_state == READ) begin
@@ -618,7 +626,7 @@ module top
             _RD_rs1 = ID_rs1;
             _RD_rs2 = ID_rs2;
             _RD_isBranch = ID_isBranch;
-
+            _RD_pc = ID_pc;
             _EXECUTE_state = EXECUTE;
 
             //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
@@ -653,6 +661,8 @@ module top
             _EX_mem_size = RD_mem_size;
             _EX_isBranch = RD_isBranch;
             _EX_immediate = RD_immediate;
+            _EX_pc = RD_pc;
+
             _EX_ecall = RD_ecall;
             _EX_a0 = RD_a0;
             _EX_a1 = RD_a1;
@@ -706,6 +716,7 @@ module top
             _MEM_size = EX_mem_size;
             _MEM_rs2_val = EX_rs2_val;
             _MEM_isBranch = EX_isBranch;
+            _MEM_pc = EX_pc;
             _MEM_ecall = EX_ecall;
             _MEM_a0 = EX_a0;
             _MEM_a1 = EX_a1;
@@ -974,7 +985,7 @@ module top
             for (int i = 0; i < 16; i++) begin
                 instrlist[i] <= 32'b0;
             end  
-        end
+        end else begin /////////
 
         // The only registers written to no matter what.
         stallstate <= _stallstate;
@@ -1050,6 +1061,7 @@ module top
         ID_write_sig <= 0;
         ID_instr_type <= 0;
         ID_instr <= 0;
+        ID_pc <= 0;
         ID_mem_access <= 0;
         ID_mem_size <= 0;
         ID_ecall <= 0;
@@ -1066,6 +1078,7 @@ module top
         ID_write_sig <= _ID_write_sig;
         ID_instr_type <= _ID_instr_type;
         ID_instr <= _ID_instr;
+        ID_pc <= _ID_pc;
         ID_mem_access <= _ID_mem_access;
         ID_mem_size <= _ID_mem_size;
         ID_ecall <= _ID_ecall;
@@ -1086,6 +1099,7 @@ module top
         RD_instr <= 0;
         RD_mem_access <= 0;
         RD_mem_size <= 0;
+        RD_pc <= 0;
 
         RD_rs1 <= 0;
         RD_rs2 <= 0;
@@ -1111,6 +1125,7 @@ module top
         RD_rs1_val <= _RD_rs1_val;
         RD_rs2_val <= _RD_rs2_val;
         RD_instr <= _RD_instr;
+        RD_pc <= _RD_pc;
         RD_mem_access <= _RD_mem_access;
         RD_mem_size <= _RD_mem_size;
 
@@ -1141,6 +1156,8 @@ module top
         EX_isBranch <= 0;
         EX_immediate <= 0;
         EX_ecall <= 0;
+        EX_pc <= 0;
+
         EX_a0 <= 0;
         EX_a1 <= 0;
         EX_a2 <= 0;
@@ -1161,6 +1178,7 @@ module top
         EX_rs2_val <= _EX_rs2_val;
         EX_isBranch <= _EX_isBranch;
         EX_immediate <= _EX_immediate;
+        EX_pc <= _EX_pc;
         EX_ecall <= _EX_ecall;
         EX_a0 <= _EX_a0;
         EX_a1 <= _EX_a1;
@@ -1186,6 +1204,8 @@ module top
         MEM_access <= 0;
         MEM_size <= 0;
         MEM_rs2_val <= 0;
+        MEM_pc <= 0;
+
         MEM_isBranch <= 0;
         MEM_ecall <= 0;
         MEM_a0 <= 0;
@@ -1210,6 +1230,7 @@ module top
         MEM_access <= _MEM_access;
         MEM_size <= _MEM_size;
         MEM_rs2_val <= _MEM_rs2_val;
+        MEM_pc <= _MEM_pc;
         MEM_isBranch <= _MEM_isBranch;
         MEM_ecall <= _MEM_ecall;
         MEM_a0 <= _MEM_a0;
@@ -1239,6 +1260,7 @@ module top
         end
         end
     
+        end
     end
 
     initial begin
