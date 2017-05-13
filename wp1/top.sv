@@ -261,6 +261,8 @@ module top
     logic [511:0] _MEM_read_value;
     logic [63:0] MEM_str_value;
     logic [63:0] _MEM_str_value;
+    logic [5:0] zcounter;
+    logic [5:0] _zcounter;
 
     //WB pass along
     logic [31:0] WB_instr; //For debuggin
@@ -750,7 +752,7 @@ module top
                             if(cache == 1) begin 
                                 MEM_cache_bus_reqcyc = 1;
                                 MEM_cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                                MEM_cache_bus_req = _MEM_alu_result - (_MEM_alu_result % 512); //TODO: find and floor requested address
+                                MEM_cache_bus_req = _MEM_alu_result - (_MEM_alu_result % 64); //TODO: find and floor requested address
                                 if(MEM_cache_bus_reqack == 1) begin
                                     _MEM_status = 1;
                                     _MEM_read_value = 0;
@@ -760,7 +762,7 @@ module top
                             else begin
                                 MEM_arbiter_bus_reqcyc = 1;
                                 MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                                MEM_arbiter_bus_req = _MEM_alu_result - (_MEM_alu_result % 512); //TODO: find and floor requested address
+                                MEM_arbiter_bus_req = _MEM_alu_result - (_MEM_alu_result % 64); //TODO: find and floor requested address
                                 if(MEM_arbiter_bus_reqack == 1) begin
                                     _MEM_status = 1;
                                     _MEM_read_value = 0;
@@ -770,12 +772,25 @@ module top
                         end
                     1: begin  //receive response
                             if(MEM_ptr == 8) begin
-                                MEM_next_ptr = _MEM_alu_result % 512;
+                                MEM_next_ptr = _MEM_alu_result % 64;
                                 _MEM_status = 2;
                             end
                             else if(cache == 1) begin
                                 if(MEM_cache_bus_respcyc == 1) begin
-                                    if(MEM_cache_bus_resp == MEM_read_value[64*(MEM_ptr-1) +: 63]) begin
+                                    if(MEM_cache_bus_resp == 0) begin
+                                        _zcounter = zcounter + 1;
+                                        if(zcounter == 0) begin
+                                            _MEM_read_value[64*MEM_ptr +: 63] = MEM_cache_bus_resp;
+                                            MEM_next_ptr = MEM_ptr + 1;
+                                        end
+                                        else begin
+                                            if(zcounter >= 1) begin
+                                                _zcounter = 0;
+                                            end
+                                            MEM_next_ptr = MEM_ptr;
+                                        end
+                                    end
+                                    else if (MEM_ptr != 0 && MEM_cache_bus_resp == MEM_read_value[64*(MEM_ptr-1) +: 63]) begin
                                         MEM_next_ptr = MEM_ptr;
                                     end
                                     else begin
@@ -815,35 +830,58 @@ module top
                                 _MEM_status = 4; 
                             end
                             else if(_MEM_access == `MEM_WRITE) begin //store
-                                _MEM_str_value = MEM_value;
-                                //modify _MEM_read_value using _MEM_alu_result
+                                //modify _MEM_read_value using _MEM_rs2_val
                                 case(_MEM_size)
-                                    `MEM_BYTE: _MEM_read_value[MEM_ptr +: 8] = _MEM_rs2_val[7:0];
-                                    `MEM_HALF: _MEM_read_value[MEM_ptr +: 16] = _MEM_rs2_val[15:0];
-                                    `MEM_WORD: _MEM_read_value[MEM_ptr +: 32] = _MEM_rs2_val[31:0];
-                                    `MEM_DOUBLE: _MEM_read_value[MEM_ptr +: 64] = _MEM_rs2_val;
+                                    `MEM_BYTE: begin
+                                        _MEM_read_value[MEM_ptr +: 8] = _MEM_rs2_val[7:0];
+                                        _MEM_str_value = _MEM_rs2_val[7:0];
+                                    end
+                                    `MEM_HALF: begin
+                                        _MEM_read_value[MEM_ptr +: 16] = _MEM_rs2_val[15:0];
+                                        _MEM_str_value = _MEM_rs2_val[15:0];
+                                    end
+                                    `MEM_WORD: begin
+                                        _MEM_read_value[MEM_ptr +: 32] = _MEM_rs2_val[31:0];
+                                        _MEM_str_value = _MEM_rs2_val[31:0];
+                                    end
+                                    `MEM_DOUBLE: begin
+                                        _MEM_read_value[MEM_ptr +: 64] = _MEM_rs2_val;
+                                        _MEM_str_value = _MEM_rs2_val;
+                                    end
                                 endcase
                                 //request to write to memory
                                 if(cache == 1) begin
                                     MEM_cache_bus_reqcyc = 1;
-                                    MEM_cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                                    MEM_cache_bus_req = 64'h0; //TODO: find and floor requested address
-                                    _MEM_status = 3;
+                                    MEM_cache_bus_reqtag = {1'b0,`SYSBUS_MEMORY,8'b0};
+                                    MEM_cache_bus_req = _MEM_alu_result - (_MEM_alu_result%64);//64'h0; //TODO: find and floor requested address
+                                    if(MEM_cache_bus_reqack == 1) begin
+                                        _MEM_status = 3;
+                                        MEM_next_ptr = 0;
+                                    end
+                                    else begin
+                                        _MEM_status = 2;
+                                    end
                                 end
                                 else begin
                                     MEM_arbiter_bus_reqcyc = 1;
-                                    MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                                    MEM_arbiter_bus_req = 64'h0; //TODO: find and floor requested address
-                                    _MEM_status = 3;
+                                    MEM_arbiter_bus_reqtag = {1'b0,`SYSBUS_MEMORY,8'b0};
+                                    MEM_arbiter_bus_req = _MEM_alu_result - (_MEM_alu_result%64);//64'h0; //TODO: find and floor requested address
+                                    if(MEM_arbiter_bus_reqack == 1) begin
+                                        _MEM_status = 3;
+                                        MEM_next_ptr = 0;
+                                    end
+                                    else begin
+                                        _MEM_status = 2;
+                                    end
                                 end
                             end
                         end
                     3: begin //write to memory
                             if(cache == 1) begin
+                                MEM_cache_bus_reqcyc = 1;
+                                MEM_cache_bus_reqtag = {1'b0,`SYSBUS_MEMORY,8'b0};
+                                MEM_cache_bus_req = MEM_read_value[64*MEM_ptr +: 63];
                                 if(MEM_cache_bus_reqack == 1) begin
-                                    MEM_cache_bus_reqcyc = 1;
-                                    MEM_cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                                    MEM_cache_bus_req = MEM_read_value[64*MEM_ptr +: 63];
                                     MEM_next_ptr = MEM_ptr + 1;
                                     if(MEM_ptr == 7) begin
                                         MEM_next_ptr = 0;
@@ -852,10 +890,10 @@ module top
                                 end
                             end
                             else begin
+                                MEM_arbiter_bus_reqcyc = 1;
+                                MEM_arbiter_bus_reqtag = {1'b0,`SYSBUS_MEMORY,8'b0};
+                                MEM_arbiter_bus_req = MEM_read_value[64*MEM_ptr +: 63];
                                 if(MEM_arbiter_bus_reqack == 1) begin
-                                    MEM_arbiter_bus_reqcyc = 1;
-                                    MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                                    MEM_arbiter_bus_req = MEM_read_value[64*MEM_ptr +: 63];
                                     MEM_next_ptr = MEM_ptr + 1;
                                     if(MEM_ptr == 7) begin
                                         MEM_next_ptr = 0;
@@ -867,7 +905,7 @@ module top
 		   4: begin
                         //Can go on to the next stage NOW.
                             _MEM_value = _MEM_str_value;
-                            _MEM_read_value = 0;
+                            _MEM_read_value = -1;
                             MEM_next_ptr = 0;
                         end
                 endcase
@@ -1022,7 +1060,7 @@ module top
             instr_index <= 0;
             MEM_status <= 0;
             MEM_ptr <= 0;
-            MEM_read_value <= 0;
+            MEM_read_value <= -1;
             firstFETCH <= 1;
             for (int i = 0; i < 16; i++) begin
                 instrlist[i] <= 32'b0;
@@ -1245,11 +1283,12 @@ module top
         MEM_status <= 0;
         MEM_instr <= 0;
         MEM_ptr <= 0;
-        MEM_read_value <= 0;
+        MEM_read_value <= -1;
         MEM_access <= 0;
         MEM_size <= 0;
         MEM_rs2_val <= 0;
         MEM_pc <= 0;
+        zcounter <= 0;
 
         MEM_isBranch <= 0;
         MEM_ecall <= 0;
@@ -1278,6 +1317,7 @@ module top
         MEM_pc <= _MEM_pc;
         MEM_isBranch <= _MEM_isBranch;
         MEM_ecall <= _MEM_ecall;
+        zcounter <= _zcounter;
         MEM_a0 <= _MEM_a0;
         MEM_a1 <= _MEM_a1;
         MEM_a2 <= _MEM_a2;
@@ -1293,6 +1333,7 @@ module top
             MEM_read_value <= _MEM_read_value;
             MEM_ptr <= MEM_next_ptr;
             MEM_str_value <= _MEM_str_value;
+            zcounter <= _zcounter;
         end
 
         end
