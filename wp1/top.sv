@@ -769,30 +769,37 @@ module top
                             end
                         end
                     1: begin  //receive response
-                            if(cache == 1) begin
+                            if(MEM_ptr == 8) begin
+                                MEM_next_ptr = _MEM_alu_result % 512;
+                                _MEM_status = 2;
+                            end
+                            else if(cache == 1) begin
                                 if(MEM_cache_bus_respcyc == 1) begin
-                                    _MEM_read_value[64*MEM_ptr +: 63] = MEM_cache_bus_resp;
-                                    MEM_cache_bus_respack = 1;
-                                    MEM_next_ptr = MEM_ptr + 1;
-                                    if(MEM_ptr == 7) begin
-                                        MEM_next_ptr = _MEM_alu_result % 512;
-                                        _MEM_status = 2;
+                                    if(MEM_cache_bus_resp == MEM_read_value[64*(MEM_ptr-1) +: 63]) begin
+                                        MEM_next_ptr = MEM_ptr;
                                     end
+                                    else begin
+                                        _MEM_read_value[64*MEM_ptr +: 63] = MEM_cache_bus_resp;
+                                        MEM_next_ptr = MEM_ptr + 1;
+                                    end
+                                    MEM_cache_bus_respack = 1;
                                 end
                             end
                             else begin
                                 if(MEM_arbiter_bus_respcyc == 1) begin
-                                    _MEM_read_value[64*MEM_ptr +: 63] = MEM_arbiter_bus_resp;
-                                    MEM_arbiter_bus_respack = 1;
-                                    MEM_next_ptr = MEM_ptr + 1;
-                                    if(MEM_ptr == 7) begin
-                                        MEM_next_ptr = _MEM_alu_result % 512;
-                                        _MEM_status = 2;
+                                    if(MEM_arbiter_bus_resp == MEM_read_value[64*(MEM_ptr-1) +: 63]) begin
+                                        MEM_next_ptr = MEM_ptr;
                                     end
+                                    else begin
+                                        _MEM_read_value[64*MEM_ptr +: 63] = MEM_arbiter_bus_resp;
+                                        MEM_next_ptr = MEM_ptr + 1;
+                                    end
+                                    MEM_arbiter_bus_respack = 1;
                                 end
                             end
                         end
                     2: begin  //manipulate read value accordingly and send request to write if needed
+                            MEM_cache_bus_respack = 1;
                             if(_MEM_access == `MEM_READ) begin //load
                                 //Tload value from MEM_read_value to _MEM_value
                                 case(_MEM_size)
@@ -860,6 +867,8 @@ module top
 		   4: begin
                         //Can go on to the next stage NOW.
                             _MEM_value = _MEM_str_value;
+                            _MEM_read_value = 0;
+                            MEM_next_ptr = 0;
                         end
                 endcase
             end
