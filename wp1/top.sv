@@ -424,6 +424,7 @@ module top
         _index_from_pc = index_from_pc;
         _jumpbit = jumpbit;
         _firstFETCH = 0;
+        _cur_pc = cur_pc;
         end
 
         case(state)
@@ -601,7 +602,7 @@ module top
     end
 
     always_comb begin
-        _MEM_status = 0;
+       // _MEM_status = MEM_status;
         MEM_next_ptr = MEM_ptr;
         _MEM_value = MEM_value;
         _MEM_str_value = MEM_str_value;
@@ -872,7 +873,7 @@ module top
                 _stall_instr = EX_instr;
             end
 
-            if(_MEM_access != `MEM_NO_ACCESS && _MEM_status == 4)begin
+            if(_MEM_access != `MEM_NO_ACCESS && MEM_status == 4)begin
                 if(stall_instr == EX_instr && stall_instr != 0) begin
                     _stallstate = 0;
                     _stall_instr = 0;
@@ -1278,7 +1279,7 @@ module top
         MEM_a7 <= _MEM_a7;
         end
         //If stalling because of mem stage ld/st...
-        else if(_MEM_access != `MEM_NO_ACCESS && _MEM_status != 4 && stall_instr == EX_instr && stall_instr != 0) begin
+        else if(_MEM_access != `MEM_NO_ACCESS && stall_instr == EX_instr && stall_instr != 0) begin
             MEM_status <= _MEM_status;
             MEM_read_value <= _MEM_read_value;
             MEM_ptr <= MEM_next_ptr;
