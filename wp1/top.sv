@@ -640,10 +640,11 @@ module top
             _EXECUTE_state = EXECUTE;
 
             //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
-            if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
+            // Check if there's a stall already.
+            if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr && stallstate < READ) begin
                 _stall_instr = ID_instr;
                 _stallstate = READ;
-            end else if (writinglist[ID_rs2][32] && writinglist[ID_rs2][31:0] != ID_instr) begin
+            end else if (writinglist[ID_rs2][32] && writinglist[ID_rs2][31:0] != ID_instr && stallstate < READ) begin
                 _stall_instr = ID_instr;
                 _stallstate = READ;
             end
@@ -697,13 +698,15 @@ module top
             if(EX_isBranch == `COND) begin
                 //conditional branches.
                 if(EX_alu_result) begin
-
+                    //If fetching instructions, wait until it finisheds to jump.
                     if(state < GETINSTR) begin
                         _waiting_for_jump = 1;
-                        _stallstate = MEM;
+                        if(stallstate < MEM) begin
+                        _stallstate = WRITEBACK;
                         _stall_instr = EX_instr;
+                        end
                     end else begin
-                        _nop_state = READ;
+                        _nop_state = EXECUTE;
                         _jumpbit = 1;  
                         _jump_to_addr = EX_immediate;
                         _index_from_pc = (EX_immediate % 64)/4;
@@ -717,10 +720,12 @@ module top
 
                 if(state < GETINSTR) begin
                     _waiting_for_jump = 1;
-                    _stallstate = MEM;
+                    if(stallstate < MEM) begin
+                    _stallstate = WRITEBACK;
                     _stall_instr = EX_instr;
+                    end
                 end else begin
-                    _nop_state = READ;
+                    _nop_state = EXECUTE;
                     _jumpbit = 1;
                     _jump_to_addr = EX_alu_result;
                     _index_from_pc = (EX_alu_result % 64)/4;
@@ -928,7 +933,7 @@ module top
 
             end
 
-            if(_MEM_access != `MEM_NO_ACCESS && _MEM_status != 4) begin
+            if(_MEM_access != `MEM_NO_ACCESS && _MEM_status != 4 && stallstate < MEM) begin
                 _stallstate = MEM;
                 _stall_instr = EX_instr;
             end
@@ -948,6 +953,7 @@ module top
                 _MEM_write_sig = 1;
             end
 
+            // If the current instruction is the stalling instruction and stallstate is set to less than it.
             if(stall_instr == _MEM_instr && stallstate < MEM && stall_instr != 0) begin
                 _stallstate = MEM;
             end
@@ -999,7 +1005,7 @@ module top
             if(jumpbit && (state > WAIT) && MEM_instr != 0) begin
                 _jumpNOW =1;
                 //next_state = JUMP;
-              //  _nop_state = READ;
+                _nop_state = WRITEBACK;
             end
             //This is for calling nop after the last write back (before new fetch).
             if(instr_before_fetch == MEM_instr && instr_before_fetch != 0) begin
