@@ -928,7 +928,7 @@ module top
 
             end
 
-            if(_MEM_access != `MEM_NO_ACCESS && _MEM_status != 4) begin
+            if(_MEM_access != `MEM_NO_ACCESS && _MEM_status != 4 && MEM < _stallstate) begin
                 _stallstate = MEM;
                 _stall_instr = EX_instr;
             end
@@ -995,12 +995,19 @@ module top
                 _last_instr = {1'b1,MEM_instr};
             end
 
-            //This is for jumping
+            //This is for jumping.
+            //If it wants to jump
             if(jumpbit && (state > WAIT) && MEM_instr != 0) begin
-                _jumpNOW =1;
-                //next_state = JUMP;
-              //  _nop_state = READ;
+                //If stalling in MEM (b/c mem access) 
+                if(_stallstate == MEM) begin
+                    _stallstate = WRITEBACK;
+                end else begin
+                    _jumpNOW = 1;
+                    _nop_state = EXECUTE;
+                end
             end
+
+
             //This is for calling nop after the last write back (before new fetch).
             if(instr_before_fetch == MEM_instr && instr_before_fetch != 0) begin
                 _nop_state = WRITEBACK;
