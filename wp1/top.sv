@@ -62,6 +62,8 @@ module top
     reg [3:0] _nop_state;
     reg jumpNOW;
     reg _jumpNOW;
+    reg waiting_for_jump;
+    reg _waiting_for_jump;
 
     reg firstFETCH;
     reg _firstFETCH;
@@ -535,7 +537,9 @@ module top
                         //set this bit to 0 until fetch again.
                         _getinstr_ready = 0;
                         _stallstate = 0;
+                        _stall_instr = 0;
                         _nop_state = 0;
+                        _waiting_for_jump = 0;
                         if(jumpbit) begin
                             _jumpbit = 0;
                             _jump_to_addr = 0;
@@ -553,11 +557,7 @@ module top
                             _last_instr = {1'b0,instr};
                             next_state = IDLE;
                         end
-/*                        if(_instr == 32'h00008067) begin
-                            _last_instr = {1'b0, _instr};
-                            next_state = IDLE;
-                        end
-*/
+
                         for (int i = 0; i < 32; i++) begin
                             _writinglist[i] = 0;
                         end
@@ -581,12 +581,7 @@ module top
                                 _last_instr = {1'b0,instr}; //this is the instr before this.
                                 next_state = IDLE;
                             end
-/*                          
-                            if(_instr == 32'h00008067) begin
-                                _last_instr = {1'b0, _instr};
-                                next_state = IDLE;
-                            end
-*/                        end
+                        end
                     end
                     //Start decode.
                     _DECODE_state = DECODE;
@@ -702,34 +697,52 @@ module top
             if(EX_isBranch == `COND) begin
                 //conditional branches.
                 if(EX_alu_result) begin
-                    _jumpbit = 1;  
-                    _jump_to_addr = EX_immediate;
-                    _index_from_pc = (EX_immediate % 64)/4;
-                    _instr_before_fetch = EX_instr;
-                    _nop_state = READ;
-                    // Should jump after WB... to store the addr to $rd.
+
+                    if(state < GETINSTR) begin
+                        _waiting_for_jump = 1;
+                        _stallstate = MEM;
+                        _stall_instr = EX_instr;
+                    end else begin
+                        _nop_state = READ;
+                        _jumpbit = 1;  
+                        _jump_to_addr = EX_immediate;
+                        _index_from_pc = (EX_immediate % 64)/4;
+                        _instr_before_fetch = EX_instr;
+                    end
                 end else begin
                     // Not branching.
                 end
             end else if(EX_isBranch == `UNCOND) begin
                 //Unconditional branch.
-                _jumpbit = 1;
-                _jump_to_addr = EX_alu_result;
-                _index_from_pc = (EX_alu_result % 64)/4;
-                // Should jump after WB... to store the addr to $rd.
-                _instr_before_fetch = EX_instr;
-                _nop_state = READ;
-                _MEM_value = EX_pc + 4;
 
+                if(state < GETINSTR) begin
+                    _waiting_for_jump = 1;
+                    _stallstate = MEM;
+                    _stall_instr = EX_instr;
+                end else begin
+                    _nop_state = READ;
+                    _jumpbit = 1;
+                    _jump_to_addr = EX_alu_result;
+                    _index_from_pc = (EX_alu_result % 64)/4;
+                    _instr_before_fetch = EX_instr;
+                    // Should jump after WB... to store the addr to $rd.
+                    _MEM_value = EX_pc + 4;
+                end
             end else begin
                 _MEM_value = EX_alu_result;
-            end 
+            end
+
+            //If stalling because of jump
+            if(_stallstate >= MEM && _waiting_for_jump == 1) begin
+                _MEM_access = `MEM_NO_ACCESS;
+            end else begin
+                _MEM_access = EX_mem_access;
+            end
 
             //Passing these as registers to WB.
             _MEM_alu_result = EX_alu_result;
             _MEM_write_reg = EX_write_reg;
             _MEM_write_sig = EX_write_sig;
-            _MEM_access = EX_mem_access;
             _MEM_instr = EX_instr;
             _MEM_size = EX_mem_size;
             _MEM_rs2_val = EX_rs2_val;
@@ -1095,7 +1108,7 @@ module top
         //If it needs to get more instructions.
         //set IF registers
         jumpNOW <= _jumpNOW;
-
+        waiting_for_jump <= _waiting_for_jump;
 
         if(_jumpNOW) begin
             state <= JUMP;
