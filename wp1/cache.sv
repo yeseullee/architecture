@@ -49,6 +49,7 @@ module cache
 		input p_bus_respack, 				//acknowledgement by processor when receiving the data
 		output  [BUS_DATA_WIDTH-1:0] p_bus_resp,	//content of requested address
 		output  [BUS_TAG_WIDTH-1:0] p_bus_resptag,	//tag associated with response (useful in superscalar)
+		output [8:0] out_ptr,
 
 
 		// interface to connect to the bus on the dram(memory) side
@@ -60,7 +61,8 @@ module cache
 		input  m_bus_respcyc,				//set to 1 when memory has requested information
 		output m_bus_respack,				//acknowlegement of response sent to memory
 		input  [BUS_DATA_WIDTH-1:0] m_bus_resp,		//the contents of the requested address
-		input  [BUS_TAG_WIDTH-1:0] m_bus_resptag	//tag associated with request (useful in superscalar)
+		input  [BUS_TAG_WIDTH-1:0] m_bus_resptag,	//tag associated with request (useful in superscalar)
+		output [8:0] mem_ptr
 	);
 
 	//variables used in all states
@@ -76,7 +78,7 @@ module cache
 	logic _invalid;
 
 	//cache management-related variables
-	logic cache_type = 0; //set to 0 for direct, 1 for set
+	logic cache_type = 1; //set to 0 for direct, 1 for set
 	logic [OFFSET-1:0] offset;
 	logic [NUM_CACHE_LINES-1:0] dirty_bits;
 	logic [NUM_CACHE_LINES-1:0] _dirty_bits;
@@ -331,24 +333,28 @@ module cache
 					else if(m_bus_respcyc == 1) begin
 						m_bus_respack = 1;
 						//_content[(DATA_LENGTH-1)-(64*ptr):(DATA_LENGTH-1)-(64*(ptr+1)] = m_bus_resp;
-						_content[64*ptr +: 64] = m_bus_resp;
-						next_ptr = ptr;
-						if(m_bus_resp != _content[64*(ptr-1) +: 64]) begin// || m_bus_resp == 0) begin
-							next_ptr = ptr + 1;
-							if(zcounter > 0) begin
-								_zcounter = 0;
-							end
-						end
-						else if(m_bus_resp == 0) begin
-							if(zcounter >= 2) begin
-								_zcounter = 0;
-								next_ptr = ptr + 1;
-							end
-							else begin
-								_zcounter = zcounter + 1;
-							end
-						end
+						_content[64*mem_ptr +: 64] = m_bus_resp;
+					//	next_ptr = ptr;
+					//	if(m_bus_resp != _content[64*(ptr-1) +: 64]) begin// || m_bus_resp == 0) begin
+					//		next_ptr = ptr + 1;
+					//		if(zcounter > 0) begin
+					//			_zcounter = 0;
+					//		end
+					//	end
+					//	else if(m_bus_resp == 0) begin
+					//		if(zcounter >= 2) begin
+					//			_zcounter = 0;
+					//			next_ptr = ptr + 1;
+					//		end
+					//		else begin
+					//			_zcounter = zcounter + 1;
+					//		end
+					//	end
 						next_state = RECEIVE;
+						if(mem_ptr == 7) begin
+							next_state = UPDATE;
+							next_ptr = 0;
+						end
 					end
 					else begin
 					   	m_bus_respack = 0;
@@ -460,6 +466,7 @@ module cache
 
 	//respond to processor: RESPOND
 	always_comb begin
+		out_ptr = ptr;
 		case(state)
 			RESPOND:begin
 					p_bus_respcyc = 1;
