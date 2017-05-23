@@ -60,8 +60,6 @@ module top
     reg [31:0] _jump_to_addr;
     reg [3:0] index_from_pc;
     reg [3:0] _index_from_pc;
-    reg [3:0] nop_state;
-    reg [3:0] _nop_state;
 
     reg firstFETCH;
     reg _firstFETCH;
@@ -81,6 +79,8 @@ module top
     reg _getinstr_ready;
     reg [32:0] last_instr;
     reg [32:0] _last_instr;
+    logic IF_valid_instr;
+    logic _IF_valid_instr;
 
     //handle incoming instructions
     //setup inputs & outputs for all modules
@@ -114,6 +114,10 @@ module top
     logic [2:0] _ID_isBranch;
     logic [63:0] ID_pc;
     logic [63:0] _ID_pc;
+    //Valid instruction
+    logic ID_valid_instr;
+    logic _ID_valid_instr;
+
 
     //READ WIRES & REGISTERS  
     //Pass along REGISTERS (8)
@@ -129,6 +133,7 @@ module top
     logic [4:0] _RD_write_reg;
     logic [3:0] RD_instr_type;
     logic [3:0] _RD_instr_type;
+
     // Also pass these .. (from Reg file output)
     logic [63:0] RD_rs1_val;
     logic [63:0] _RD_rs1_val;
@@ -167,6 +172,10 @@ module top
     logic [63:0] _RD_a6;
     logic [63:0] RD_a7;
     logic [63:0] _RD_a7;
+    //Valid instruction
+    logic RD_valid_instr;
+    logic _RD_valid_instr;
+   
 
     //EXECUTE stage WIRES & REGISTERS
     // Pass along REGISTERS (3)
@@ -209,6 +218,9 @@ module top
     logic [63:0] _EX_a6;
     logic [63:0] EX_a7;
     logic [63:0] _EX_a7;
+    //Valid instruction
+    logic EX_valid_instr;
+    logic _EX_valid_instr;
 
     //MEMORY WIRES & REGISTERS
     //logic [63:0] MEM_alu_result;
@@ -261,6 +273,9 @@ module top
     logic [63:0] _MEM_str_value;
     logic [5:0] zcounter;
     logic [5:0] _zcounter;
+    //Valid instruction
+    logic MEM_valid_instr;
+    logic _MEM_valid_instr;
 
     //WB pass along
     logic [31:0] WB_instr; //For debuggin
@@ -287,6 +302,9 @@ module top
     logic [63:0] _WB_a7;
     logic [63:0] WB_pc;
     logic [63:0] _WB_pc;
+    //Valid instruction
+    logic WB_valid_instr;
+
 
     //cache variables
     logic cache = 1;  //set to 0 to remove the cache, and comment out cache initialization block
@@ -396,12 +414,6 @@ module top
     logic [3:0] _DECODE_state;
     logic [3:0] READ_state;
     logic [3:0] _READ_state;
-    logic [3:0] EXECUTE_state;
-    logic [3:0] _EXECUTE_state;
-    logic [3:0] MEM_state;
-    logic [3:0] _MEM_state;
-    logic [3:0] WRITEBACK_state;
-    logic [3:0] _WRITEBACK_state;
 
     always_comb begin
         if(cache == 1) begin
@@ -542,6 +554,7 @@ module top
                             _IF_pc = pc;
                         end
                         _IF_instr = instrlist[_instr_index];
+                        _IF_valid_instr = 1;
                         next_state = GETINSTR;
                         
                         if(_IF_instr == 32'b0) begin
@@ -566,6 +579,7 @@ module top
                             _IF_instr = 0;
                             _instr_index = 0;
                             _IF_pc = 0;
+                            _IF_valid_instr = 0;
                            
                             // stop stalling                      
                             _jump_stallstate = 0; 
@@ -578,15 +592,18 @@ module top
                                 _pc = pc + 64;
                                 _IF_instr = 0;
                                 _instr_index = 0;
+                                _IF_valid_instr = 0;
                                 
                             end else begin
 
                                 _IF_instr = instrlist[_instr_index];
+                                _IF_valid_instr = 1;
                                 _IF_pc = IF_pc + 4;
                                 next_state = GETINSTR;
                                 if(_IF_instr == 32'b0) begin
                                     _last_instr = {1'b0,IF_instr}; //this is the instr before this.
                                     next_state = IDLE;
+                                    //TODO: valid instr?
                                 end
                             end
                         end
@@ -618,17 +635,22 @@ module top
             MEM_arbiter_bus_req = 64'h0;
             MEM_arbiter_bus_reqtag = 0;
         end
-        if(DECODE_state == DECODE) begin
+
+        if(ID_valid_instr) begin
             _ID_instr = IF_instr;
             _ID_pc = IF_pc;
             _READ_state = READ;
+            _ID_valid_instr = 1;
 
             if(_ID_isBranch == `COND || _ID_isBranch == `UNCOND) begin
                 //stall here.
                 _jump_stallstate = GETINSTR;
             end
+        end else begin
+            _ID_valid_instr = 0;
         end
-        if(READ_state == READ) begin
+
+        if(RD_valid_instr) begin
 
             _RD_immediate = ID_immediate;
             _RD_alu_op = ID_alu_op;
@@ -644,13 +666,14 @@ module top
             _RD_rs2 = ID_rs2;
             _RD_isBranch = ID_isBranch;
             _RD_pc = ID_pc;
-            _EXECUTE_state = EXECUTE;
 
             //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
             if(writinglist[ID_rs1][32] && writinglist[ID_rs1][31:0] != ID_instr) begin
                 _read_stallstate = READ;
+                _RD_valid_instr = 0;
             end else if (writinglist[ID_rs2][32] && writinglist[ID_rs2][31:0] != ID_instr) begin
                 _read_stallstate = READ;
+                _RD_valid_instr = 0;
             end
             //Otherwise, (not stalling)
             else begin
@@ -661,10 +684,18 @@ module top
                 //If both registers are free to go, then no more stalling.
                 //This checks if this stage initiated the stall.
                 _read_stallstate = 0;
+                _RD_valid_instr = 1;
             end
 
+        end else begin
+            _RD_valid_instr = 0;
         end
-        if(EXECUTE_state == EXECUTE) begin
+
+        // EXECUTE 
+
+        //Always set the valid signal to whatever is passed from RD.
+
+        if(EX_valid_instr) begin
             //Passing these as registers to WB.
             _EX_write_sig = RD_write_sig; 
             _EX_write_reg = RD_write_reg;
@@ -685,13 +716,24 @@ module top
             _EX_a6 = RD_a6;
             _EX_a7 = RD_a7;
 
-            //To get more instructions.
-            _MEM_state = MEM; 
-
+            _EX_valid_instr = 1;
+        end else begin
+            _EX_valid_instr = 0;
         end
-        if(MEM_state == MEM) begin
 
-  
+        // MEM stage.
+        
+        //If not (stalling or valid).
+        /*if(!(mem_stallstate > 0 || EX_valid_instr)) begin
+            _MEM_valid_instr = 0;
+        end*/
+
+        if(!MEM_valid_instr) begin
+            _MEM_valid_instr = 0;
+        end
+        // If it is a valid instruction passed from EX or stalling, execute this stage.
+        else begin
+
             if(EX_isBranch == `COND) begin
                 //conditional branches.
                 if(EX_alu_result) begin
@@ -738,6 +780,8 @@ module top
             _MEM_a5 = EX_a5;
             _MEM_a6 = EX_a6;
             _MEM_a7 = EX_a7;
+
+            _MEM_valid_instr = 0;
 
             //read from memory if store or load, go immediately to writeback otherwise
             if(_MEM_access != `MEM_NO_ACCESS) begin
@@ -909,15 +953,16 @@ module top
                             _MEM_read_value = -1;
                             MEM_next_ptr = 0;
                             _MEM_status = 0;
+
                             _mem_stallstate = 0;
+                            _MEM_valid_instr = 1;
                         end
                 endcase
             end
             else begin
 
                 _mem_stallstate = 0;
-                _WRITEBACK_state = WRITEBACK;
-
+                _MEM_valid_instr = 1;
             end
 
             if(_MEM_ecall == 1) begin
@@ -927,7 +972,11 @@ module top
             end
 
         end
-        if(WRITEBACK_state == WRITEBACK) begin
+
+        // WRITE BACK STAGE.
+        if(!WB_valid_instr) begin
+            _WB_write_sig = 0;
+        end else begin
             //To write back to the register file.
             //There should be write signal.
             _WB_instr = MEM_instr;
@@ -971,8 +1020,8 @@ module top
             if(jumpbit) begin
                     //Clear the buffer. // Done in GETINSTR
             end
-
         end
+
     end
 
 
@@ -1001,9 +1050,9 @@ module top
                 .clk(clk), .reset(reset), .sp_val(stackptr),
                 .rs1(ID_rs1), .rs2(ID_rs2),  
                 //Used Only From WB Stage.
-                .write_sig(MEM_write_sig), 
-                .write_val(MEM_value), 
-                .write_reg(MEM_write_reg),
+                .write_sig(_WB_write_sig), 
+                .write_val(_WB_write_val), 
+                .write_reg(_WB_write_reg),
 
                 //OUTPUTS
                 //Used Only From READ Stage.
@@ -1056,18 +1105,16 @@ module top
             writinglist[i] <= _writinglist[i];
         end
 
-        //
-
-        //If it needs to get more instructions.
-        //set IF registers
         state <= next_state;
+        DECODE_state <= _DECODE_state;
+        READ_state <= _READ_state;
  
         pc <= _pc;
         fetch_count <= _fetch_count;
         getinstr_ready <= _getinstr_ready;
         last_instr <= _last_instr;
 
-        // The only place the program jumps is from WB.
+        //For JUMP
         jump_to_addr <= _jump_to_addr;
         jumpbit <= _jumpbit;
         index_from_pc <= _index_from_pc;
@@ -1076,116 +1123,118 @@ module top
             instrlist[i] <= _instrlist[i];
         end
 
-        DECODE_state <= _DECODE_state;
-        READ_state <= _READ_state;
-        EXECUTE_state <= _EXECUTE_state;
-        WRITEBACK_state <= _WRITEBACK_state;
-        MEM_state <= _MEM_state;
-
         if(_read_stallstate < GETINSTR && _jump_stallstate < GETINSTR && _mem_stallstate < GETINSTR) begin
-        IF_instr <= _IF_instr;
-        instr_index <= _instr_index;
-        IF_pc <= _IF_pc;
+            IF_instr <= _IF_instr;
+            instr_index <= _instr_index;
+            IF_pc <= _IF_pc;
         end
-
+    
         if(_read_stallstate < DECODE && _jump_stallstate < DECODE && _mem_stallstate < DECODE) begin
-        //set ID registers
-        ID_rd <= _ID_rd;
-        ID_rs1 <= _ID_rs1;
-        ID_rs2 <= _ID_rs2;
-        ID_immediate <= _ID_immediate;
-        ID_alu_op <= _ID_alu_op;
-        ID_shamt <= _ID_shamt;
-        ID_write_sig <= _ID_write_sig;
-        ID_instr_type <= _ID_instr_type;
-        ID_instr <= _ID_instr;
-        ID_pc <= _ID_pc;
-        ID_mem_access <= _ID_mem_access;
-        ID_mem_size <= _ID_mem_size;
-        ID_ecall <= _ID_ecall;
-        ID_isBranch <= _ID_isBranch;
+            //set ID registers
+            ID_rd <= _ID_rd;
+            ID_rs1 <= _ID_rs1;
+            ID_rs2 <= _ID_rs2;
+            ID_immediate <= _ID_immediate;
+            ID_alu_op <= _ID_alu_op;
+            ID_shamt <= _ID_shamt;
+            ID_write_sig <= _ID_write_sig;
+            ID_instr_type <= _ID_instr_type;
+            ID_instr <= _ID_instr;
+            ID_pc <= _ID_pc;
+            ID_mem_access <= _ID_mem_access;
+            ID_mem_size <= _ID_mem_size;
+            ID_ecall <= _ID_ecall;
+            ID_isBranch <= _ID_isBranch;
+
+            ID_valid_instr <= _IF_valid_instr;
         end
 
 
         if(_read_stallstate < READ && _jump_stallstate < READ && _mem_stallstate < READ) begin
-        //set READ registers
-        RD_immediate <= _RD_immediate;
-        RD_alu_op <= _RD_alu_op;
-        RD_shamt <= _RD_shamt;
-        RD_write_sig <= _RD_write_sig;
-        RD_write_reg <= _RD_write_reg;
-        RD_instr_type <= _RD_instr_type;
-        RD_rs1_val <= _RD_rs1_val;
-        RD_rs2_val <= _RD_rs2_val;
-        RD_instr <= _RD_instr;
-        RD_pc <= _RD_pc;
-        RD_mem_access <= _RD_mem_access;
-        RD_mem_size <= _RD_mem_size;
+            //set READ registers
+            RD_immediate <= _RD_immediate;
+            RD_alu_op <= _RD_alu_op;
+            RD_shamt <= _RD_shamt;
+            RD_write_sig <= _RD_write_sig;
+            RD_write_reg <= _RD_write_reg;
+            RD_instr_type <= _RD_instr_type;
+            RD_rs1_val <= _RD_rs1_val;
+            RD_rs2_val <= _RD_rs2_val;
+            RD_instr <= _RD_instr;
+            RD_pc <= _RD_pc;
+            RD_mem_access <= _RD_mem_access;
+            RD_mem_size <= _RD_mem_size;
 
-        RD_rs1 <= _RD_rs1;
-        RD_rs2 <= _RD_rs2;
-        RD_isBranch <= _RD_isBranch;
-        RD_ecall <= _RD_ecall;
-        RD_a0 <= _RD_a0;
-        RD_a1 <= _RD_a1;
-        RD_a2 <= _RD_a2;
-        RD_a3 <= _RD_a3;
-        RD_a4 <= _RD_a4;
-        RD_a5 <= _RD_a5;
-        RD_a6 <= _RD_a6;
-        RD_a7 <= _RD_a7;
+            RD_rs1 <= _RD_rs1;
+            RD_rs2 <= _RD_rs2;
+            RD_isBranch <= _RD_isBranch;
+            RD_ecall <= _RD_ecall;
+            RD_a0 <= _RD_a0;
+            RD_a1 <= _RD_a1;
+            RD_a2 <= _RD_a2;
+            RD_a3 <= _RD_a3;
+            RD_a4 <= _RD_a4;
+            RD_a5 <= _RD_a5;
+            RD_a6 <= _RD_a6;
+            RD_a7 <= _RD_a7;
+
+            RD_valid_instr <= _ID_valid_instr;
         end
 
 
         if(_read_stallstate < EXECUTE && _jump_stallstate < EXECUTE && _mem_stallstate < EXECUTE) begin
-        //set EX registers
-        EX_alu_result <= _EX_alu_result;
-        EX_write_reg <= _EX_write_reg;
-        EX_write_sig <= _EX_write_sig;
-        EX_instr <= _EX_instr;
-        EX_mem_access <= _EX_mem_access;
-        EX_mem_size <= _EX_mem_size;
-        EX_rs2_val <= _EX_rs2_val;
-        EX_isBranch <= _EX_isBranch;
-        EX_immediate <= _EX_immediate;
-        EX_pc <= _EX_pc;
-        EX_ecall <= _EX_ecall;
-        EX_a0 <= _EX_a0;
-        EX_a1 <= _EX_a1;
-        EX_a2 <= _EX_a2;
-        EX_a3 <= _EX_a3;
-        EX_a4 <= _EX_a4;
-        EX_a5 <= _EX_a5;
-        EX_a6 <= _EX_a6;
-        EX_a7 <= _EX_a7;
-        end
+            //set EX registers
+            EX_alu_result <= _EX_alu_result;
+            EX_write_reg <= _EX_write_reg;
+            EX_write_sig <= _EX_write_sig;
+            EX_instr <= _EX_instr;
+            EX_mem_access <= _EX_mem_access;
+            EX_mem_size <= _EX_mem_size;
+            EX_rs2_val <= _EX_rs2_val;
+            EX_isBranch <= _EX_isBranch;
+            EX_immediate <= _EX_immediate;
+            EX_pc <= _EX_pc;
+            EX_ecall <= _EX_ecall;
+            EX_a0 <= _EX_a0;
+            EX_a1 <= _EX_a1;
+            EX_a2 <= _EX_a2;
+            EX_a3 <= _EX_a3;
+            EX_a4 <= _EX_a4;
+            EX_a5 <= _EX_a5;
+            EX_a6 <= _EX_a6;
+            EX_a7 <= _EX_a7;
+
+            EX_valid_instr <= _RD_valid_instr;
+        end 
 
 
         if(_read_stallstate < MEM && _jump_stallstate < MEM && _mem_stallstate < MEM) begin
-        //set MEM registers
-        MEM_write_reg <= _MEM_write_reg;
-        MEM_value <= _MEM_value;
-        MEM_str_value <= _MEM_str_value;
-        MEM_write_sig <= _MEM_write_sig;
-        MEM_status <= _MEM_status;
-        MEM_instr <= _MEM_instr;
-        MEM_ptr <= MEM_next_ptr;
-        MEM_read_value <= _MEM_read_value;
-        MEM_access <= _MEM_access;
-        MEM_size <= _MEM_size;
-        MEM_rs2_val <= _MEM_rs2_val;
-        MEM_pc <= _MEM_pc;
-        MEM_isBranch <= _MEM_isBranch;
-        MEM_ecall <= _MEM_ecall;
-        zcounter <= _zcounter;
-        MEM_a0 <= _MEM_a0;
-        MEM_a1 <= _MEM_a1;
-        MEM_a2 <= _MEM_a2;
-        MEM_a3 <= _MEM_a3;
-        MEM_a4 <= _MEM_a4;
-        MEM_a5 <= _MEM_a5;
-        MEM_a6 <= _MEM_a6;
-        MEM_a7 <= _MEM_a7;
+            //set MEM registers
+            MEM_write_reg <= _MEM_write_reg;
+            MEM_value <= _MEM_value;
+            MEM_str_value <= _MEM_str_value;
+            MEM_write_sig <= _MEM_write_sig;
+            MEM_status <= _MEM_status;
+            MEM_instr <= _MEM_instr;
+            MEM_ptr <= MEM_next_ptr;
+            MEM_read_value <= _MEM_read_value;
+            MEM_access <= _MEM_access;
+            MEM_size <= _MEM_size;
+            MEM_rs2_val <= _MEM_rs2_val;
+            MEM_pc <= _MEM_pc;
+            MEM_isBranch <= _MEM_isBranch;
+            MEM_ecall <= _MEM_ecall;
+            zcounter <= _zcounter;
+            MEM_a0 <= _MEM_a0;
+            MEM_a1 <= _MEM_a1;
+            MEM_a2 <= _MEM_a2;
+            MEM_a3 <= _MEM_a3;
+            MEM_a4 <= _MEM_a4;
+            MEM_a5 <= _MEM_a5;
+            MEM_a6 <= _MEM_a6;
+            MEM_a7 <= _MEM_a7;
+
+            MEM_valid_instr <= _EX_valid_instr;
         end
         //If stalling because of mem stage ld/st...
         else if(_MEM_access != `MEM_NO_ACCESS && _mem_stallstate == MEM) begin
@@ -1206,7 +1255,10 @@ module top
             WB_write_reg <= _WB_write_reg;
             WB_write_val <= _WB_write_val;
             WB_write_sig <= _WB_write_sig;
+
+            WB_valid_instr <= _MEM_valid_instr;
         end
+
     end
 
     initial begin
