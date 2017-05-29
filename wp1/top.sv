@@ -276,10 +276,14 @@ module top
     logic [63:0] _MEM_str_value;
     logic [5:0] zcounter;
     logic [5:0] _zcounter;
+    logic MEM_finished_instr;
+    logic _MEM_finished_instr;
     //Valid instruction
     logic MEM_valid_instr;
     logic _MEM_valid_instr;
     logic MEM_stalled;
+    
+
 
     //WB pass along
     logic [31:0] WB_instr; //For debuggin
@@ -733,12 +737,12 @@ module top
     
         // MEM stage.
        
-        if(!MEM_stalling) begin
+        if(!MEM_stalled) begin
             _MEM_valid_instr = EX_valid_instr;
         end
  
         // If it is a valid instruction passed from EX or stalling, execute this stage.
-        if(MEM_stalling || _MEM_valid_instr) begin
+        if(MEM_stalled || _MEM_valid_instr) begin
 
             if(EX_isBranch == `COND) begin
                 //conditional branches.
@@ -782,8 +786,17 @@ module top
             _MEM_a6 = EX_a6;
             _MEM_a7 = EX_a7;
 
-            //read from memory if store or load, go immediately to writeback otherwise
-            if(_MEM_access != `MEM_NO_ACCESS) begin
+
+            if(MEM_finished_instr) begin
+                //MEM_status == 0 from status 4.
+                _mem_stallstate = 0;
+                _MEM_finished_instr = 0;
+            end
+
+            else if(_MEM_access != `MEM_NO_ACCESS) begin
+
+                _mem_stallstate = MEM;
+
                 case(MEM_status)
                     0: begin  //make request to memory to read
                             if(cache == 1) begin 
@@ -806,7 +819,6 @@ module top
                                     MEM_next_ptr = 0;
                                 end
                             end
-                            _mem_stallstate = MEM;
                         end
                     1: begin  //receive response
                             if(MEM_ptr == 8) begin
@@ -850,8 +862,6 @@ module top
                                     MEM_arbiter_bus_respack = 1;
                                 end
                             end
-
-                            _mem_stallstate = MEM;
                         end
                     2: begin  //manipulate read value accordingly and send request to write if needed
                             MEM_cache_bus_respack = 1;
@@ -915,8 +925,6 @@ module top
                                     end
                                 end
                             end
-
-                            _mem_stallstate = MEM;
                         end
                     3: begin //write to memory
                             if(cache == 1) begin
@@ -943,8 +951,6 @@ module top
                                     end
                                 end
                             end
-
-                            _mem_stallstate = MEM;
                         end
 		   4: begin
                         //Can go on to the next stage NOW.
@@ -952,8 +958,8 @@ module top
                             _MEM_read_value = -1;
                             MEM_next_ptr = 0;
                             _MEM_status = 0;
-
-                            _mem_stallstate = 0;
+                            _MEM_finished_instr = 1;
+                            //_mem_stallstate = 0;
                         end
                 endcase
             end
@@ -971,9 +977,17 @@ module top
         end
 
         // WRITE BACK STAGE.
-       /* if(!WB_valid_instr) begin
+        _WB_valid_instr = MEM_valid_instr;
+
+        // NOTE: There shouldn't be any stall on WB. 
+        // If not valid instr
+        if(!_WB_valid_instr) begin
             _WB_write_sig = 0;
-        end else begin*/
+        end
+
+        // If it is a valid instruction passed from MEM, execute this stage.
+        else begin
+       
             //To write back to the register file.
             //There should be write signal.
             _WB_instr = MEM_instr;
@@ -994,18 +1008,19 @@ module top
             _WB_a7 = MEM_a7;
             _WB_pc = MEM_pc;
 
+            //This is for Stall...
+            //If WB wrote to the reg, then clear it on writinglist.
+            if(writinglist[MEM_write_reg][32] && (writinglist[MEM_write_reg][31:0] == MEM_instr)) begin
+                _writinglist[MEM_write_reg] = {32'b0};
+            end
+
+            //TODO
             if(_WB_ecall == 1) begin
   //              _nop_state = WRITEBACK;
             end
 
             if(_WB_mem_access == `MEM_READ) begin
                 do_pending_write(_WB_write_val, _WB_rs2_value, _WB_mem_size);
-            end
-
-            //This is for Stall...
-            //If WB wrote to the reg, then clear it on writinglist.
-            if(writinglist[MEM_write_reg][32] && (writinglist[MEM_write_reg][31:0] == MEM_instr)) begin
-                _writinglist[MEM_write_reg] = {32'b0};
             end
 
             //This is for detecting the last instr.
@@ -1017,7 +1032,7 @@ module top
             if(jumpbit) begin
                     //Clear the buffer. // Done in GETINSTR
             end
-//        end
+        end
 
     end
 
@@ -1254,6 +1269,7 @@ module top
             MEM_a5 <= _MEM_a5;
             MEM_a6 <= _MEM_a6;
             MEM_a7 <= _MEM_a7;
+            MEM_finished_instr <= _MEM_finished_instr;
 
             MEM_stalled <= 0;
             MEM_valid_instr <= _MEM_valid_instr;
@@ -1270,6 +1286,7 @@ module top
                 MEM_ptr <= MEM_next_ptr;
                 MEM_str_value <= _MEM_str_value;
                 zcounter <= _zcounter;
+                MEM_finished_instr <= _MEM_finished_instr;
             end
 
         end
@@ -1283,9 +1300,15 @@ module top
             WB_write_val <= _WB_write_val;
             WB_write_sig <= _WB_write_sig;
 
-            //WB_valid_instr <= _MEM_valid_instr;
+            WB_stalled <= 0; 
+            WB_valid_instr <= _WB_valid_instr;
+        end else begin
+            //Stalling
+            WB_stalled <= 1;
+            WB_valid_instr <= 0;
         end
 
+        end
     end
 
     initial begin
@@ -1293,4 +1316,6 @@ module top
     end
 
 endmodule
+
+
 
