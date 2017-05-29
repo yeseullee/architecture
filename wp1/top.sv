@@ -743,7 +743,6 @@ module top
  
         // If it is a valid instruction passed from EX or stalling, execute this stage.
         if(MEM_stalled || _MEM_valid_instr) begin
-
             if(EX_isBranch == `COND) begin
                 //conditional branches.
                 if(EX_alu_result) begin
@@ -786,11 +785,11 @@ module top
             _MEM_a6 = EX_a6;
             _MEM_a7 = EX_a7;
 
-
             if(MEM_finished_instr) begin
                 //MEM_status == 0 from status 4.
                 _mem_stallstate = 0;
                 _MEM_finished_instr = 0;
+                _MEM_value = MEM_str_value;
             end
 
             else if(_MEM_access != `MEM_NO_ACCESS) begin
@@ -959,7 +958,6 @@ module top
                             MEM_next_ptr = 0;
                             _MEM_status = 0;
                             _MEM_finished_instr = 1;
-                            //_mem_stallstate = 0;
                         end
                 endcase
             end
