@@ -326,6 +326,7 @@ module top
     logic IF_cache_bus_reqack;
     logic [BUS_DATA_WIDTH-1:0] IF_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] IF_cache_bus_resptag;
+    logic [8:0] IF_cache_ptr;
 
     logic MEM_cache_bus_reqcyc;
     logic MEM_cache_bus_respack;
@@ -335,6 +336,7 @@ module top
     logic MEM_cache_bus_reqack;
     logic [BUS_DATA_WIDTH-1:0] MEM_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] MEM_cache_bus_resptag;
+    logic [8:0] MEM_cache_ptr;
 /*
     cache IF_cache_mod (
         //INPUTS
@@ -343,12 +345,14 @@ module top
         .p_bus_reqtag(IF_cache_bus_reqtag), .p_bus_respack(IF_cache_bus_respack),
         .m_bus_reqack(IF_arbiter_bus_reqack), .m_bus_respcyc(IF_arbiter_bus_respcyc), 
         .m_bus_resp(IF_arbiter_bus_resp), .m_bus_resptag(IF_arbiter_bus_resptag),
+        .mem_ptr(IF_arbiter_ptr),
 
         //OUTPUTS
         .p_bus_reqack(IF_cache_bus_reqack), .p_bus_respcyc(IF_cache_bus_respcyc), 
         .p_bus_resp(IF_cache_bus_resp), .p_bus_resptag(IF_cache_bus_resptag),
         .m_bus_reqcyc(IF_arbiter_bus_reqcyc), .m_bus_req(IF_arbiter_bus_req),
-        .m_bus_reqtag(IF_arbiter_bus_reqtag), .m_bus_respack(IF_arbiter_bus_respack)
+        .m_bus_reqtag(IF_arbiter_bus_reqtag), .m_bus_respack(IF_arbiter_bus_respack),
+        .out_ptr(IF_cache_ptr)
     );
     cache MEM_cache_mod (
         //INPUTS
@@ -357,12 +361,14 @@ module top
         .p_bus_reqtag(MEM_cache_bus_reqtag), .p_bus_respack(MEM_cache_bus_respack),
         .m_bus_reqack(MEM_arbiter_bus_reqack), .m_bus_respcyc(MEM_arbiter_bus_respcyc), 
         .m_bus_resp(MEM_arbiter_bus_resp), .m_bus_resptag(MEM_arbiter_bus_resptag),
+        .mem_ptr(MEM_arbiter_ptr),
 
         //OUTPUTS
         .p_bus_reqack(MEM_cache_bus_reqack), .p_bus_respcyc(MEM_cache_bus_respcyc), 
         .p_bus_resp(MEM_cache_bus_resp), .p_bus_resptag(MEM_cache_bus_resptag),
         .m_bus_reqcyc(MEM_arbiter_bus_reqcyc), .m_bus_req(MEM_arbiter_bus_req),
-        .m_bus_reqtag(MEM_arbiter_bus_reqtag), .m_bus_respack(MEM_arbiter_bus_respack)
+        .m_bus_reqtag(MEM_arbiter_bus_reqtag), .m_bus_respack(MEM_arbiter_bus_respack),
+        .out_ptr(MEM_cache_ptr)
     );
 */
 
@@ -383,6 +389,8 @@ module top
     logic MEM_arbiter_bus_reqack;
     logic [BUS_DATA_WIDTH-1:0] MEM_arbiter_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] MEM_arbiter_bus_resptag;
+    logic [8:0] IF_arbiter_ptr;
+    logic [8:0] MEM_arbiter_ptr;
 
     arbiter arbiter_mod (
         //INPUTS
@@ -398,7 +406,8 @@ module top
         .resptag0(IF_arbiter_bus_resptag), .reqack0(IF_arbiter_bus_reqack),
         .resp1(MEM_arbiter_bus_resp), .respcyc1(MEM_arbiter_bus_respcyc), 
         .resptag1(MEM_arbiter_bus_resptag), .reqack1(MEM_arbiter_bus_reqack),
-        .bus_req(bus_req), .bus_reqcyc(bus_reqcyc), .bus_reqtag(bus_reqtag), .bus_respack(bus_respack)
+        .bus_req(bus_req), .bus_reqcyc(bus_reqcyc), .bus_reqtag(bus_reqtag), .bus_respack(bus_respack),
+        .ptr0(IF_arbiter_ptr), .ptr1(MEM_arbiter_ptr)
     );
 
     
@@ -543,6 +552,7 @@ module top
                  end
             GETINSTR: begin
                     // After fetch, instr_index = 0
+
                     if(getinstr_ready == 1) begin
                         if(cache == 1) begin
                             IF_cache_bus_respack = 1;
@@ -566,6 +576,7 @@ module top
                         _IF_instr = instrlist[_instr_index];
                         _IF_valid_instr = 1; // VALID //
                         next_state = GETINSTR;
+
                         
                         // The last instruction
                         if(_IF_instr == 32'b0) begin
@@ -832,27 +843,30 @@ module top
                             end
                             else if(cache == 1) begin
                                 if(MEM_cache_bus_respcyc == 1) begin
-                                    if(MEM_cache_bus_resp == 0) begin
-                                        _zcounter = zcounter + 1;
-                                        if(zcounter == 0) begin
-                                            _MEM_read_value[64*MEM_ptr +: 63] = MEM_cache_bus_resp;
-                                            MEM_next_ptr = MEM_ptr + 1;
-                                        end
-                                        else begin
-                                            if(zcounter >= 1) begin
-                                                _zcounter = 0;
-                                            end
-                                            MEM_next_ptr = MEM_ptr;
-                                        end
-                                    end
-                                    else if (MEM_ptr != 0 && MEM_cache_bus_resp == MEM_read_value[64*(MEM_ptr-1) +: 63]) begin
-                                        MEM_next_ptr = MEM_ptr;
-                                    end
-                                    else begin
-                                        _MEM_read_value[64*MEM_ptr +: 63] = MEM_cache_bus_resp;
-                                        MEM_next_ptr = MEM_ptr + 1;
-                                    end
+                                    //if(MEM_cache_bus_resp == 0) begin
+                                    //    _zcounter = zcounter + 1;
+                                    //    if(zcounter == 0) begin
+                                    //        _MEM_read_value[64*MEM_ptr +: 63] = MEM_cache_bus_resp;
+                                    //       MEM_next_ptr = MEM_ptr + 1;
+                                    //    end
+                                    //    else begin
+                                    //        if(zcounter >= 1) begin
+                                    //            _zcounter = 0;
+                                    //        end
+                                    //        MEM_next_ptr = MEM_ptr;
+                                    //    end
+                                    //end
+                                    //else if (MEM_ptr != 0 && MEM_cache_bus_resp == MEM_read_value[64*(MEM_ptr-1) +: 63]) begin
+                                    //    MEM_next_ptr = MEM_ptr;
+                                    //end
+                                    //else begin
+                                        _MEM_read_value[64*MEM_cache_ptr +: 63] = MEM_cache_bus_resp;
+                                        //MEM_next_ptr = MEM_ptr + 1;
+                                    //end
                                     MEM_cache_bus_respack = 1;
+                                    if(MEM_cache_ptr == 7) begin
+                                        _MEM_status = 2;
+                                    end
                                 end
                             end
                             else begin
@@ -1031,7 +1045,6 @@ module top
             if(MEM_instr == last_instr[31:0])begin
                 _last_instr = {1'b1,MEM_instr};
             end
-
 
             if(jumpbit) begin
                     //Clear the buffer. // Done in GETINSTR

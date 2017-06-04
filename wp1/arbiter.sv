@@ -36,6 +36,7 @@ module arbiter
 		input [BUS_TAG_WIDTH-1:0] reqtag0,
 		output [BUS_DATA_WIDTH-1:0] resp0,
 		output [BUS_TAG_WIDTH-1:0] resptag0,
+		output [8:0] ptr0,
 		
 		//input 2 (memory access data)
 		input reqcyc1,
@@ -46,6 +47,7 @@ module arbiter
 		input [BUS_TAG_WIDTH-1:0] reqtag1,
 		output [BUS_DATA_WIDTH-1:0] resp1,
 		output [BUS_TAG_WIDTH-1:0] resptag1,
+		output [8:0] ptr1,
 		
 		//to memory
 		output bus_reqcyc,                          //request acknowledged
@@ -262,6 +264,7 @@ module arbiter
 						respcyc0 = 1;
 						resptag0 = req_tag;
 						resp0 = content[64*ptr +: 64];
+						ptr0 = ptr;
 					end
 
 					//channel 1
@@ -269,6 +272,7 @@ module arbiter
 						respcyc1 = 1;
 						resptag1 = req_tag;
 						resp1 = content[64*ptr +: 64];
+						ptr1 = ptr;
 					end
 
 					//transition to next state
@@ -281,6 +285,7 @@ module arbiter
 					next_ptr = ptr + 1;
 					if (ptr == 7) begin
 						next_state = ACCEPT;
+						next_ptr = 0;
 					end
 					else begin
 						next_state = RESPOND;
