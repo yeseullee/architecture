@@ -429,11 +429,6 @@ module top
     logic [5:0] instr_index;
     logic [5:0] _instr_index;
     
-    logic [3:0] DECODE_state;
-    logic [3:0] _DECODE_state;
-    logic [3:0] READ_state;
-    logic [3:0] _READ_state;
-
     always_comb begin
         if(cache == 1) begin
             IF_cache_bus_reqcyc = 0;
@@ -636,8 +631,6 @@ module top
                             end
                         end
                     end
-                    //Start decode.
-                    _DECODE_state = DECODE;
                 end
             IDLE: if(last_instr[32] == 1) begin
                       $finish;
@@ -871,13 +864,14 @@ module top
                             end
                             else begin
                                 if(MEM_arbiter_bus_respcyc == 1) begin
+                                    /* //Perhaps checking if it's equal is not necessary or needed. In case, all zeros.
                                     if(MEM_arbiter_bus_resp == MEM_read_value[64*(MEM_ptr-1) +: 63]) begin
                                         MEM_next_ptr = MEM_ptr;
                                     end
-                                    else begin
-                                        _MEM_read_value[64*MEM_ptr +: 63] = MEM_arbiter_bus_resp;
-                                        MEM_next_ptr = MEM_ptr + 1;
-                                    end
+                                    else begin */
+                                        _MEM_read_value[64*MEM_arbiter_ptr +: 63] = MEM_arbiter_bus_resp;
+                                        MEM_next_ptr = MEM_arbiter_ptr + 1;
+                                    //end
                                     MEM_arbiter_bus_respack = 1;
                                 end
                             end
@@ -1135,8 +1129,6 @@ module top
         end
 
         state <= next_state;
-        DECODE_state <= _DECODE_state;
-        READ_state <= _READ_state;
  
         pc <= _pc;
         fetch_count <= _fetch_count;
