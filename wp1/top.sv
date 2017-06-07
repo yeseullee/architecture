@@ -817,24 +817,12 @@ module top
                             
                         end
                     1: begin  //receive response
-                        /*    if(MEM_ptr == 8) begin
-                                MEM_next_ptr = _MEM_alu_result % 64;
-                                _MEM_status = 2;
-                                if(cache == 1) begin
-                                    MEM_cache_bus_respack = 1;
-                                end
-                                else begin
-                                    MEM_arbiter_bus_respack = 1;    
-                                end
-                            end
-                            else*/
                             if(cache == 1) begin
                                 if(MEM_cache_bus_respcyc == 1) begin
                                     _MEM_read_value[64*MEM_cache_ptr +: 63] = MEM_cache_bus_resp;
                                     MEM_cache_bus_respack = 1;
                                     if(MEM_cache_ptr == 7) begin
                                         _MEM_status = 2;
-                                        //MEM_next_ptr = _MEM_alu_result % 64;
                                     end
                                 end
                             end
@@ -844,7 +832,6 @@ module top
                                     MEM_arbiter_bus_respack = 1;
                                     if(MEM_arbiter_ptr == 7) begin
                                         _MEM_status = 2;
-                                        //MEM_next_ptr = _MEM_alu_result % 64;
                                     end
                                 end
                             end
@@ -858,15 +845,16 @@ module top
 
                             if(_MEM_access == `MEM_READ) begin //load
                                 //Tload value from MEM_read_value to _MEM_value
-                                case(_MEM_size) //TODO: check these (signed/unsigned).
-                                        `MEM_BYTE: _MEM_str_value = {{56{MEM_read_value[MEM_index_from_req + 7]}}, MEM_read_value[MEM_index_from_req +: 8]};
+                                case(_MEM_size) 
+                                        `MEM_BYTE: _MEM_str_value = $signed(MEM_read_value[MEM_index_from_req +: 8]);
                                         `MEM_HALF: _MEM_str_value = $signed(MEM_read_value[MEM_index_from_req +: 16]);
                                         `MEM_WORD: _MEM_str_value = $signed(MEM_read_value[MEM_index_from_req +: 32]);
-                                        `MEM_DOUBLE: _MEM_str_value = {MEM_read_value[MEM_ptr +: 64]};
-                                        `MEM_US_BYTE: _MEM_str_value = {56'b0, MEM_read_value[MEM_ptr +: 8]};
-                                        `MEM_US_HALF: _MEM_str_value = {48'b0, MEM_read_value[MEM_ptr +: 16]};
-                                        `MEM_US_WORD: _MEM_str_value = {32'b0, MEM_read_value[MEM_ptr +: 32]};
+                                        `MEM_DOUBLE: _MEM_str_value = {MEM_read_value[MEM_index_from_req +: 64]};
+                                        `MEM_US_BYTE: _MEM_str_value = $unsigned(MEM_read_value[MEM_index_from_req +: 8]);
+                                        `MEM_US_HALF: _MEM_str_value = $unsigned(MEM_read_value[MEM_index_from_req +: 16]);
+                                        `MEM_US_WORD: _MEM_str_value = $unsigned(MEM_read_value[MEM_index_from_req +: 32]);
                                 endcase
+                                
                                 MEM_next_ptr = 0;
                                 _MEM_status = 4; 
                             end
