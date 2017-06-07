@@ -200,6 +200,7 @@ module arbiter
 			DRAMWREQ: begin
 					bus_reqcyc = 1;
 					bus_req = req_addr;
+                                        bus_reqtag = req_tag;
 					if(bus_reqack == 1) begin
 							next_ptr = 0;
 							next_state = DRAMWRT;

@@ -274,6 +274,7 @@ module top
     logic [511:0] _MEM_read_value;
     logic [63:0] MEM_str_value;
     logic [63:0] _MEM_str_value;
+    logic [63:0] MEM_index_from_req;
     logic [5:0] zcounter;
     logic [5:0] _zcounter;
     logic MEM_finished_instr;
@@ -411,18 +412,6 @@ module top
     );
 
     
-    // FOR FETCHING INSTRUCTIONS
-    //OUTPUT
-    logic  bus_reqcyc_0; //I need to set to 1 for requesting to read instr
-    logic  bus_respack_0; //I acknowledge the response by setting it to 1.
-    logic  [BUS_DATA_WIDTH-1:0] bus_req_0;//the address I wanna read
-    logic  [BUS_TAG_WIDTH-1:0] bus_reqtag_0; //what you are requesting.
-    //INPUT
-    logic  bus_respcyc_0; //it should become 1 if it is ready to respond.
-    logic  bus_reqack_0;
-    logic  [BUS_DATA_WIDTH-1:0] bus_resp_0; //the instruction read.
-    logic  [BUS_TAG_WIDTH-1:0] bus_resptag_0;
-
     // FOR STORING INSTRS (total 16 (each 32 bits))
     logic [31:0] instrlist[15:0];
     logic [31:0] _instrlist[15:0];
@@ -553,7 +542,7 @@ module top
                             IF_cache_bus_respack = 1;
                         end
                         else begin
-                        IF_arbiter_bus_respack = 1;
+                            IF_arbiter_bus_respack = 1;
                         end
                         //set this bit to 0 until fetch again.
                         _getinstr_ready = 0;
@@ -726,6 +715,7 @@ module top
         _EX_mem_size = RD_mem_size;
         _EX_isBranch = RD_isBranch;
         _EX_immediate = RD_immediate;
+        _EX_rs2_val = RD_rs2_val;
         _EX_pc = RD_pc;
 
         _EX_ecall = RD_ecall;
@@ -810,6 +800,7 @@ module top
                                     _MEM_status = 1;
                                     _MEM_read_value = 0;
                                     MEM_next_ptr = 0;
+                                    MEM_index_from_req = _MEM_alu_result - MEM_cache_bus_req;
                                 end
                             end
                             else begin
@@ -820,11 +811,13 @@ module top
                                     _MEM_status = 1;
                                     _MEM_read_value = 0;
                                     MEM_next_ptr = 0;
+                                    MEM_index_from_req = _MEM_alu_result - MEM_arbiter_bus_req;
                                 end
                             end
+                            
                         end
                     1: begin  //receive response
-                            if(MEM_ptr == 8) begin
+                        /*    if(MEM_ptr == 8) begin
                                 MEM_next_ptr = _MEM_alu_result % 64;
                                 _MEM_status = 2;
                                 if(cache == 1) begin
@@ -834,56 +827,41 @@ module top
                                     MEM_arbiter_bus_respack = 1;    
                                 end
                             end
-                            else if(cache == 1) begin
+                            else*/
+                            if(cache == 1) begin
                                 if(MEM_cache_bus_respcyc == 1) begin
-                                    //if(MEM_cache_bus_resp == 0) begin
-                                    //    _zcounter = zcounter + 1;
-                                    //    if(zcounter == 0) begin
-                                    //        _MEM_read_value[64*MEM_ptr +: 63] = MEM_cache_bus_resp;
-                                    //       MEM_next_ptr = MEM_ptr + 1;
-                                    //    end
-                                    //    else begin
-                                    //        if(zcounter >= 1) begin
-                                    //            _zcounter = 0;
-                                    //        end
-                                    //        MEM_next_ptr = MEM_ptr;
-                                    //    end
-                                    //end
-                                    //else if (MEM_ptr != 0 && MEM_cache_bus_resp == MEM_read_value[64*(MEM_ptr-1) +: 63]) begin
-                                    //    MEM_next_ptr = MEM_ptr;
-                                    //end
-                                    //else begin
-                                        _MEM_read_value[64*MEM_cache_ptr +: 63] = MEM_cache_bus_resp;
-                                        //MEM_next_ptr = MEM_ptr + 1;
-                                    //end
+                                    _MEM_read_value[64*MEM_cache_ptr +: 63] = MEM_cache_bus_resp;
                                     MEM_cache_bus_respack = 1;
                                     if(MEM_cache_ptr == 7) begin
                                         _MEM_status = 2;
+                                        //MEM_next_ptr = _MEM_alu_result % 64;
                                     end
                                 end
                             end
                             else begin
                                 if(MEM_arbiter_bus_respcyc == 1) begin
-                                    /* //Perhaps checking if it's equal is not necessary or needed. In case, all zeros.
-                                    if(MEM_arbiter_bus_resp == MEM_read_value[64*(MEM_ptr-1) +: 63]) begin
-                                        MEM_next_ptr = MEM_ptr;
-                                    end
-                                    else begin */
-                                        _MEM_read_value[64*MEM_arbiter_ptr +: 63] = MEM_arbiter_bus_resp;
-                                        MEM_next_ptr = MEM_arbiter_ptr + 1;
-                                    //end
+                                    _MEM_read_value[64*MEM_arbiter_ptr +: 63] = MEM_arbiter_bus_resp;
                                     MEM_arbiter_bus_respack = 1;
+                                    if(MEM_arbiter_ptr == 7) begin
+                                        _MEM_status = 2;
+                                        //MEM_next_ptr = _MEM_alu_result % 64;
+                                    end
                                 end
                             end
                         end
                     2: begin  //manipulate read value accordingly and send request to write if needed
-                            MEM_cache_bus_respack = 1;
+                            if(cache==1) begin
+                                MEM_cache_bus_respack = 1;
+                            end begin
+                                MEM_arbiter_bus_respack = 1;
+                            end
+
                             if(_MEM_access == `MEM_READ) begin //load
                                 //Tload value from MEM_read_value to _MEM_value
-                                case(_MEM_size)
-                                        `MEM_BYTE: _MEM_str_value = {{56{MEM_read_value[MEM_ptr + 7]}}, MEM_read_value[MEM_ptr +: 8]};
-                                        `MEM_HALF: _MEM_str_value = {{48{MEM_read_value[MEM_ptr + 15]}}, MEM_read_value[MEM_ptr +: 16]};
-                                        `MEM_WORD: _MEM_str_value = {{32{MEM_read_value[MEM_ptr + 31]}}, MEM_read_value[MEM_ptr +: 32]};
+                                case(_MEM_size) //TODO: check these (signed/unsigned).
+                                        `MEM_BYTE: _MEM_str_value = {{56{MEM_read_value[MEM_index_from_req + 7]}}, MEM_read_value[MEM_index_from_req +: 8]};
+                                        `MEM_HALF: _MEM_str_value = $signed(MEM_read_value[MEM_index_from_req +: 16]);
+                                        `MEM_WORD: _MEM_str_value = $signed(MEM_read_value[MEM_index_from_req +: 32]);
                                         `MEM_DOUBLE: _MEM_str_value = {MEM_read_value[MEM_ptr +: 64]};
                                         `MEM_US_BYTE: _MEM_str_value = {56'b0, MEM_read_value[MEM_ptr +: 8]};
                                         `MEM_US_HALF: _MEM_str_value = {48'b0, MEM_read_value[MEM_ptr +: 16]};
@@ -896,19 +874,19 @@ module top
                                 //modify _MEM_read_value using _MEM_rs2_val
                                 case(_MEM_size)
                                     `MEM_BYTE: begin
-                                        _MEM_read_value[MEM_ptr +: 8] = _MEM_rs2_val[7:0];
+                                        _MEM_read_value[MEM_index_from_req +: 8] = _MEM_rs2_val[7:0];
                                         _MEM_str_value = _MEM_rs2_val[7:0];
                                     end
                                     `MEM_HALF: begin
-                                        _MEM_read_value[MEM_ptr +: 16] = _MEM_rs2_val[15:0];
+                                        _MEM_read_value[MEM_index_from_req +: 16] = _MEM_rs2_val[15:0];
                                         _MEM_str_value = _MEM_rs2_val[15:0];
                                     end
                                     `MEM_WORD: begin
-                                        _MEM_read_value[MEM_ptr +: 32] = _MEM_rs2_val[31:0];
+                                        _MEM_read_value[MEM_index_from_req +: 32] = _MEM_rs2_val[31:0];
                                         _MEM_str_value = _MEM_rs2_val[31:0];
                                     end
                                     `MEM_DOUBLE: begin
-                                        _MEM_read_value[MEM_ptr +: 64] = _MEM_rs2_val;
+                                        _MEM_read_value[MEM_index_from_req +: 64] = _MEM_rs2_val;
                                         _MEM_str_value = _MEM_rs2_val;
                                     end
                                 endcase
@@ -972,6 +950,7 @@ module top
                             MEM_next_ptr = 0;
                             _MEM_status = 0;
                             _MEM_finished_instr = 1;
+                            MEM_index_from_req = 0;
                         end
                 endcase
             end
