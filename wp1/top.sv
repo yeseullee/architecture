@@ -514,6 +514,10 @@ module top
                     else begin
                         if(fetch_count == 16) begin
                             IF_arbiter_bus_respack = 1;
+                            _fetch_count = fetch_count + 1;
+                        end
+                        else if(fetch_count == 17) begin
+                            IF_arbiter_bus_respack = 1;
                             // For the first instr after fetch.
                             next_state = GETINSTR;
                             _getinstr_ready = 1;
@@ -524,9 +528,16 @@ module top
                             _instrlist[fetch_count + 1] = IF_arbiter_bus_resp[63:32];
 
                             // For next time,
-                            if(IF_arbiter_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]} || IF_arbiter_bus_resp == 0) begin
+                            if(IF_arbiter_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]}) begin// || IF_arbiter_bus_resp == 0) begin
                                 _fetch_count = fetch_count + 2;
                             end
+                            else if(IF_arbiter_bus_resp == 0) begin
+                                _fetch_count = fetch_count + 1;
+                                if(fetch_count == 14) begin
+                                    _fetch_count = fetch_count + 2;
+                                end
+                            end
+
                             IF_arbiter_bus_respack = 1;
                             next_state = WAIT;
                         end else begin
@@ -536,7 +547,6 @@ module top
                  end
             GETINSTR: begin
                     // After fetch, instr_index = 0
-
                     if(getinstr_ready == 1) begin
                         if(cache == 1) begin
                             IF_cache_bus_respack = 1;
@@ -544,8 +554,12 @@ module top
                         else begin
                             IF_arbiter_bus_respack = 1;
                         end
-                        //set this bit to 0 until fetch again.
-                        _getinstr_ready = 0;
+                        
+                        //After fetching, there's no stall
+                        if(!IF_stalled) begin
+                            //set this bit to 0 until fetch again.
+                            _getinstr_ready = 0;
+                        end
                       
                         if(jumpbit) begin
                             _jumpbit = 0;
@@ -554,6 +568,7 @@ module top
                             _instr_index = index_from_pc;
                             _IF_pc = index_from_pc*4 + pc;
                         end else begin
+                            //If not jumping then it should be fetching new instr. so index = 0.
                             _instr_index = 0;
                             _IF_pc = pc;
                         end
