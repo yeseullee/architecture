@@ -546,8 +546,34 @@ module top
                     end
                  end
             GETINSTR: begin
+                    //If it is being stalled, then don't do anything unless there's jumpbit.
+                    if(IF_stalled) begin
+                        if(jumpbit) begin
+                            _pc = jump_to_addr - jump_to_addr%64; //align by 64.
+                            next_state = FETCH;
+
+                            //Clear the buffer.
+                            for (int i = 0; i < 16; i++) begin
+                                _instrlist[i] = 32'b0;
+                            end
+          
+                            _IF_instr = 0;
+                            _instr_index = 0;
+                            _IF_pc = 0;
+                            _IF_valid_instr = 0; // INVALID //
+
+                            // In case getinstr_ready (fetched just before jump)
+                            _getinstr_ready = 0;
+                           
+                            // stop stalling                      
+                            _jump_stallstate = 0; 
+                        end else begin
+                            next_state = GETINSTR;
+                        end
+                    end
+
                     // After fetch, instr_index = 0
-                    if(getinstr_ready == 1) begin
+                    else if(getinstr_ready == 1) begin
                         if(cache == 1) begin
                             IF_cache_bus_respack = 1;
                         end
@@ -555,11 +581,8 @@ module top
                             IF_arbiter_bus_respack = 1;
                         end
                         
-                        //After fetching, there's no stall
-                        if(!IF_stalled) begin
-                            //set this bit to 0 until fetch again.
-                            _getinstr_ready = 0;
-                        end
+                        //set this bit to 0 until fetch again.
+                        _getinstr_ready = 0;
                       
                         if(jumpbit) begin
                             _jumpbit = 0;
@@ -590,48 +613,28 @@ module top
                     end
                     // instr_index = 1,2,... 
                     else begin
-                        // If JUMPING...
-                        if(jumpbit) begin
-                            _pc = jump_to_addr - jump_to_addr%64; //align by 64.
+                        _instr_index = instr_index + 1;
+                        
+                        if(_instr_index >= 16) begin
+                            //Stall and go fetch more.
                             next_state = FETCH;
-
-                            //Clear the buffer.
-                            for (int i = 0; i < 16; i++) begin
-                                _instrlist[i] = 32'b0;
-                            end
-
+                            _pc = pc + 64;
                             _IF_instr = 0;
                             _instr_index = 0;
-                            _IF_pc = 0;
                             _IF_valid_instr = 0; // INVALID //
-                           
-                            // stop stalling                      
-                            _jump_stallstate = 0; 
-
+                              
                         end else begin
-                            _instr_index = instr_index + 1;
-                            
-                            if(_instr_index >= 16) begin
-                                //Stall and go fetch more.
-                                next_state = FETCH;
-                                _pc = pc + 64;
-                                _IF_instr = 0;
-                                _instr_index = 0;
+
+                            _IF_instr = instrlist[_instr_index];
+                            _IF_valid_instr = 1; // VALID //
+                            _IF_pc = IF_pc + 4;
+                            next_state = GETINSTR;
+
+                            // The last instruction
+                            if(_IF_instr == 32'b0) begin
+                                _last_instr = {1'b0,IF_instr}; //this is the instr before this.
+                                next_state = IDLE;
                                 _IF_valid_instr = 0; // INVALID //
-                                
-                            end else begin
-
-                                _IF_instr = instrlist[_instr_index];
-                                _IF_valid_instr = 1; // VALID //
-                                _IF_pc = IF_pc + 4;
-                                next_state = GETINSTR;
-
-                                // The last instruction
-                                if(_IF_instr == 32'b0) begin
-                                    _last_instr = {1'b0,IF_instr}; //this is the instr before this.
-                                    next_state = IDLE;
-                                    _IF_valid_instr = 0; // INVALID //
-                                end
                             end
                         end
                     end
