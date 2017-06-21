@@ -53,6 +53,20 @@ module top
     reg [3:0] mem_stallstate;
     reg [3:0] _mem_stallstate;
 
+    //For ecall
+    reg [3:0] ecall_stallstate;
+    reg [3:0] _ecall_stallstate;
+    reg [2:0] ecall_count;
+    reg [2:0] _ecall_count;
+    logic [63:0] cur_a0;
+    logic [63:0] cur_a1;
+    logic [63:0] cur_a2;
+    logic [63:0] cur_a3;
+    logic [63:0] cur_a4;
+    logic [63:0] cur_a5;
+    logic [63:0] cur_a6;
+    logic [63:0] cur_a7;
+
     //For jumps
     reg jumpbit; 
     reg _jumpbit;
@@ -158,22 +172,6 @@ module top
     //ECALL wires and registers
     logic [1:0] RD_ecall;
     logic [1:0] _RD_ecall;
-    logic [63:0] RD_a0;
-    logic [63:0] _RD_a0;
-    logic [63:0] RD_a1;
-    logic [63:0] _RD_a1;
-    logic [63:0] RD_a2;
-    logic [63:0] _RD_a2;
-    logic [63:0] RD_a3;
-    logic [63:0] _RD_a3;
-    logic [63:0] RD_a4;
-    logic [63:0] _RD_a4;
-    logic [63:0] RD_a5;
-    logic [63:0] _RD_a5;
-    logic [63:0] RD_a6;
-    logic [63:0] _RD_a6;
-    logic [63:0] RD_a7;
-    logic [63:0] _RD_a7;
     //Valid instruction
     logic RD_valid_instr;
     logic _RD_valid_instr;
@@ -204,22 +202,6 @@ module top
     //ECALL wires and registers
     logic [1:0] EX_ecall;
     logic [1:0] _EX_ecall;
-    logic [63:0] EX_a0;
-    logic [63:0] _EX_a0;
-    logic [63:0] EX_a1;
-    logic [63:0] _EX_a1;
-    logic [63:0] EX_a2;
-    logic [63:0] _EX_a2;
-    logic [63:0] EX_a3;
-    logic [63:0] _EX_a3;
-    logic [63:0] EX_a4;
-    logic [63:0] _EX_a4;
-    logic [63:0] EX_a5;
-    logic [63:0] _EX_a5;
-    logic [63:0] EX_a6;
-    logic [63:0] _EX_a6;
-    logic [63:0] EX_a7;
-    logic [63:0] _EX_a7;
     //Valid instruction
     logic EX_valid_instr;
     logic _EX_valid_instr;
@@ -249,22 +231,6 @@ module top
     //ECALL wires and registers
     logic [1:0] MEM_ecall;
     logic [1:0] _MEM_ecall;
-    logic [63:0] MEM_a0;
-    logic [63:0] _MEM_a0;
-    logic [63:0] MEM_a1;
-    logic [63:0] _MEM_a1;
-    logic [63:0] MEM_a2;
-    logic [63:0] _MEM_a2;
-    logic [63:0] MEM_a3;
-    logic [63:0] _MEM_a3;
-    logic [63:0] MEM_a4;
-    logic [63:0] _MEM_a4;
-    logic [63:0] MEM_a5;
-    logic [63:0] _MEM_a5;
-    logic [63:0] MEM_a6;
-    logic [63:0] _MEM_a6;
-    logic [63:0] MEM_a7;
-    logic [63:0] _MEM_a7;
     //memory stage variables
     logic [2:0] MEM_status;
     logic [2:0] _MEM_status;
@@ -674,6 +640,9 @@ module top
                     //stall here.
                     _jump_stallstate = GETINSTR;
                 end
+                if(_ID_ecall == 1) begin
+                    _ecall_stallstate = GETINSTR;
+                end
             end
         end
 
@@ -695,7 +664,8 @@ module top
         _RD_instr = ID_instr;
         _RD_mem_access = ID_mem_access;
         _RD_mem_size = ID_mem_size;
-           
+          
+        _RD_ecall = ID_ecall; 
         _RD_rs1 = ID_rs1;
         _RD_rs2 = ID_rs2;
         _RD_isBranch = ID_isBranch;
@@ -737,14 +707,6 @@ module top
         _EX_pc = RD_pc;
 
         _EX_ecall = RD_ecall;
-        _EX_a0 = RD_a0;
-        _EX_a1 = RD_a1;
-        _EX_a2 = RD_a2;
-        _EX_a3 = RD_a3;
-        _EX_a4 = RD_a4;
-        _EX_a5 = RD_a5;
-        _EX_a6 = RD_a6;
-        _EX_a7 = RD_a7;
 
     
         // MEM stage.
@@ -788,14 +750,6 @@ module top
             _MEM_access = EX_mem_access;
             _MEM_pc = EX_pc;
             _MEM_ecall = EX_ecall;
-            _MEM_a0 = EX_a0;
-            _MEM_a1 = EX_a1;
-            _MEM_a2 = EX_a2;
-            _MEM_a3 = EX_a3;
-            _MEM_a4 = EX_a4;
-            _MEM_a5 = EX_a5;
-            _MEM_a6 = EX_a6;
-            _MEM_a7 = EX_a7;
 
             if(MEM_finished_instr) begin
                 //MEM_status == 0 from status 4.
@@ -864,13 +818,13 @@ module top
                             if(_MEM_access == `MEM_READ) begin //load
                                 //Tload value from MEM_read_value to _MEM_value
                                 case(_MEM_size) 
-                                        `MEM_BYTE: _MEM_str_value = $signed(MEM_read_value[MEM_index_from_req +: 8]);
-                                        `MEM_HALF: _MEM_str_value = $signed(MEM_read_value[MEM_index_from_req +: 16]);
-                                        `MEM_WORD: _MEM_str_value = $signed(MEM_read_value[MEM_index_from_req +: 32]);
-                                        `MEM_DOUBLE: _MEM_str_value = {MEM_read_value[MEM_index_from_req +: 64]};
-                                        `MEM_US_BYTE: _MEM_str_value = $unsigned(MEM_read_value[MEM_index_from_req +: 8]);
-                                        `MEM_US_HALF: _MEM_str_value = $unsigned(MEM_read_value[MEM_index_from_req +: 16]);
-                                        `MEM_US_WORD: _MEM_str_value = $unsigned(MEM_read_value[MEM_index_from_req +: 32]);
+                                        `MEM_BYTE: _MEM_str_value = $signed(MEM_read_value[8*MEM_index_from_req +: 8]);
+                                        `MEM_HALF: _MEM_str_value = $signed(MEM_read_value[8*MEM_index_from_req +: 16]);
+                                        `MEM_WORD: _MEM_str_value = $signed(MEM_read_value[8*MEM_index_from_req +: 32]);
+                                        `MEM_DOUBLE: _MEM_str_value = {MEM_read_value[8*MEM_index_from_req +: 64]};
+                                        `MEM_US_BYTE: _MEM_str_value = $unsigned(MEM_read_value[8*MEM_index_from_req +: 8]);
+                                        `MEM_US_HALF: _MEM_str_value = $unsigned(MEM_read_value[8*MEM_index_from_req +: 16]);
+                                        `MEM_US_WORD: _MEM_str_value = $unsigned(MEM_read_value[8*MEM_index_from_req +: 32]);
                                 endcase
                                 
                                 MEM_next_ptr = 0;
@@ -880,19 +834,19 @@ module top
                                 //modify _MEM_read_value using _MEM_rs2_val
                                 case(_MEM_size)
                                     `MEM_BYTE: begin
-                                        _MEM_read_value[MEM_index_from_req +: 8] = _MEM_rs2_val[7:0];
+                                        _MEM_read_value[8*MEM_index_from_req +: 8] = _MEM_rs2_val[7:0];
                                         _MEM_str_value = _MEM_rs2_val[7:0];
                                     end
                                     `MEM_HALF: begin
-                                        _MEM_read_value[MEM_index_from_req +: 16] = _MEM_rs2_val[15:0];
+                                        _MEM_read_value[8*MEM_index_from_req +: 16] = _MEM_rs2_val[15:0];
                                         _MEM_str_value = _MEM_rs2_val[15:0];
                                     end
                                     `MEM_WORD: begin
-                                        _MEM_read_value[MEM_index_from_req +: 32] = _MEM_rs2_val[31:0];
+                                        _MEM_read_value[8*MEM_index_from_req +: 32] = _MEM_rs2_val[31:0];
                                         _MEM_str_value = _MEM_rs2_val[31:0];
                                     end
                                     `MEM_DOUBLE: begin
-                                        _MEM_read_value[MEM_index_from_req +: 64] = _MEM_rs2_val;
+                                        _MEM_read_value[8*MEM_index_from_req +: 64] = _MEM_rs2_val;
                                         _MEM_str_value = _MEM_rs2_val;
                                     end
                                 endcase
@@ -965,24 +919,17 @@ module top
                 _mem_stallstate = 0;
             end
 
-            if(_MEM_ecall == 1) begin
-                _MEM_write_reg = 10;
-                do_ecall(_MEM_a7, _MEM_a0, _MEM_a1, _MEM_a2, _MEM_a3, _MEM_a4, _MEM_a5, _MEM_a6, _MEM_a0);
-                _MEM_write_sig = 1;
-            end
-
         end
 
         // WRITE BACK STAGE.
         _WB_valid_instr = MEM_valid_instr;
 
         // NOTE: There shouldn't be any stall on WB. 
-        // If not valid instr
-        if(!_WB_valid_instr) begin
+        // If not valid instr and it's not ecall
+        if(!_WB_valid_instr && ecall_count == 0) begin
             _WB_write_sig = 0;
         end
-
-        // If it is a valid instruction passed from MEM, execute this stage.
+        // If it is a valid instruction passed from MEM or it is an ecall, execute this stage.
         else begin
        
             //To write back to the register file.
@@ -995,15 +942,15 @@ module top
             _WB_mem_access = MEM_access;
             _WB_mem_size = MEM_size;
             _WB_rs2_value = MEM_rs2_val;
-            _WB_a0 = MEM_a0;
-            _WB_a1 = MEM_a1;
-            _WB_a2 = MEM_a2;
-            _WB_a3 = MEM_a3;
-            _WB_a4 = MEM_a4;
-            _WB_a5 = MEM_a5;
-            _WB_a6 = MEM_a6;
-            _WB_a7 = MEM_a7;
             _WB_pc = MEM_pc;
+            _WB_a0 = cur_a0;
+            _WB_a1 = cur_a1;
+            _WB_a2 = cur_a2;
+            _WB_a3 = cur_a3;
+            _WB_a4 = cur_a4;
+            _WB_a5 = cur_a5;
+            _WB_a6 = cur_a6;
+            _WB_a7 = cur_a7;
 
             //This is for Stall...
             //If WB wrote to the reg, then clear it on writinglist.
@@ -1011,12 +958,26 @@ module top
                 _writinglist[MEM_write_reg] = {32'b0};
             end
 
-            //TODO
             if(_WB_ecall == 1) begin
-  //              _nop_state = WRITEBACK;
+                //_WB_write_sig = 0;
+                if(ecall_count == 0) begin
+                    _ecall_count = 2;
+                end else begin
+                    _ecall_count = ecall_count - 1;
+                    if(_ecall_count == 0) begin
+                  //      _WB_write_sig = 1;
+                        _ecall_stallstate = 0;
+                    end
+                end
+                //TODO: stall from READ. didn't do that yet.
+                do_ecall(_WB_a7, _WB_a0, _WB_a1, _WB_a2, _WB_a3, _WB_a4, _WB_a5, _WB_a6, _WB_a0);
+                _WB_write_reg = 10;
+                _WB_write_val = _WB_a0;
+                _WB_write_sig = 1;
+
             end
 
-            if(_WB_mem_access == `MEM_READ) begin
+            if(_WB_mem_access == `MEM_WRITE) begin
                 do_pending_write(_WB_write_val, _WB_rs2_value, _WB_mem_size);
             end
 
@@ -1067,8 +1028,8 @@ module top
                 .rs1_val(_RD_rs1_val), .rs2_val(_RD_rs2_val),
 
                 //Used when calling ECALL
-                .a0(_RD_a0), .a1(_RD_a1), .a2(_RD_a2), .a3(_RD_a3),
-                .a4(_RD_a4), .a5(_RD_a5), .a6(_RD_a6), .a7(_RD_a7)
+                .a0(cur_a0), .a1(cur_a1), .a2(cur_a2), .a3(cur_a3),
+                .a4(cur_a4), .a5(cur_a5), .a6(cur_a6), .a7(cur_a7)
     );
 
     //In Execute state
@@ -1108,6 +1069,8 @@ module top
         read_stallstate <= _read_stallstate;
         jump_stallstate <= _jump_stallstate;
         mem_stallstate <= _mem_stallstate;
+        ecall_stallstate <= _ecall_stallstate;
+        ecall_count <= _ecall_count;
 
         for (int i = 0; i < 32; i++) begin
             writinglist[i] <= _writinglist[i];
@@ -1130,7 +1093,7 @@ module top
         end
 
         // FETCH //
-        if(_read_stallstate < GETINSTR && _jump_stallstate < GETINSTR && _mem_stallstate < GETINSTR) begin
+        if(_read_stallstate < GETINSTR && _jump_stallstate < GETINSTR && _mem_stallstate < GETINSTR && _ecall_stallstate < GETINSTR) begin
             IF_instr <= _IF_instr;
             instr_index <= _instr_index;
             IF_pc <= _IF_pc;
@@ -1189,14 +1152,6 @@ module top
             RD_rs2 <= _RD_rs2;
             RD_isBranch <= _RD_isBranch;
             RD_ecall <= _RD_ecall;
-            RD_a0 <= _RD_a0;
-            RD_a1 <= _RD_a1;
-            RD_a2 <= _RD_a2;
-            RD_a3 <= _RD_a3;
-            RD_a4 <= _RD_a4;
-            RD_a5 <= _RD_a5;
-            RD_a6 <= _RD_a6;
-            RD_a7 <= _RD_a7;
 
             RD_stalled <= 0;
             RD_valid_instr <= _RD_valid_instr;
@@ -1220,14 +1175,6 @@ module top
             EX_immediate <= _EX_immediate;
             EX_pc <= _EX_pc;
             EX_ecall <= _EX_ecall;
-            EX_a0 <= _EX_a0;
-            EX_a1 <= _EX_a1;
-            EX_a2 <= _EX_a2;
-            EX_a3 <= _EX_a3;
-            EX_a4 <= _EX_a4;
-            EX_a5 <= _EX_a5;
-            EX_a6 <= _EX_a6;
-            EX_a7 <= _EX_a7;
 
             EX_stalled <= 0;
             EX_valid_instr <= _EX_valid_instr;
@@ -1255,14 +1202,6 @@ module top
             MEM_isBranch <= _MEM_isBranch;
             MEM_ecall <= _MEM_ecall;
             zcounter <= _zcounter;
-            MEM_a0 <= _MEM_a0;
-            MEM_a1 <= _MEM_a1;
-            MEM_a2 <= _MEM_a2;
-            MEM_a3 <= _MEM_a3;
-            MEM_a4 <= _MEM_a4;
-            MEM_a5 <= _MEM_a5;
-            MEM_a6 <= _MEM_a6;
-            MEM_a7 <= _MEM_a7;
             MEM_finished_instr <= _MEM_finished_instr;
 
             MEM_stalled <= 0;

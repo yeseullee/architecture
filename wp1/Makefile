@@ -1,6 +1,8 @@
 .PHONY: all run clean submit
 
 RUNELF= /shared/cse502/tests/project/prog1
+#/home/yeslee/new/architecture/wp1/memtest.o
+#/shared/cse502/tests/project/prog1
 
 TRACE?=--trace
 HAVETLB=n

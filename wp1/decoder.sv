@@ -607,6 +607,7 @@ module decoder
 	            mem_access=0;
 	            mem_size=0;
                     isECALL = 1;
+                    isBranch = 0;
                 end
 	end
 
