@@ -32,7 +32,7 @@ extern "C" {
         }
     }
 
-#define ECALL_DEBUG 0
+#define ECALL_DEBUG 1
 #define ECALL_MEMGUARD (10*1024)
 
     void do_ecall(long long a7, long long a0, long long a1, long long a2, long long a3, long long a4, long long a5, long long a6, long long* a0ret) {
@@ -391,6 +391,9 @@ extern "C" {
                 iov[i].iov_base = (char*)iov[i].iov_base - (long long)System::sys->ram_virt;
 
         if (ECALL_DEBUG) cerr << " => " << std::dec << *a0ret << endl;
+        // Checking the value in ram?
+        // cerr << "Value: " << *((uint64_t*)&System::sys->ram[0x97128]) << std::dec;
+
         set<long long> invalidations;
         for(auto& m : memargs)
             for(int i = 0; i < ECALL_MEMGUARD; ++i) {

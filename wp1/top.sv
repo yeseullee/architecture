@@ -445,7 +445,7 @@ module top
                 end
             WAIT:begin
                     // Getting all 16 instrs (before, we got 2 * 8 times)
-                    if(cache == 1) begin
+                    if(cache == 1) begin //TODO: remove fetch_count, instead us ptr.
                         if(fetch_count == 16) begin
                             IF_cache_bus_respack = 1;
                             _fetch_count = fetch_count + 1;
@@ -478,34 +478,15 @@ module top
                         end
                     end
                     else begin
-                        if(fetch_count == 16) begin
-                            IF_arbiter_bus_respack = 1;
-                            _fetch_count = fetch_count + 1;
-                        end
-                        else if(fetch_count == 17) begin
-                            IF_arbiter_bus_respack = 1;
-                            // For the first instr after fetch.
-                            next_state = GETINSTR;
-                            _getinstr_ready = 1;
-                            _fetch_count = 0;
-                        end
-                        else if(IF_arbiter_bus_respcyc == 1) begin
-                            _instrlist[fetch_count] = IF_arbiter_bus_resp[31:0];
-                            _instrlist[fetch_count + 1] = IF_arbiter_bus_resp[63:32];
-
-                            // For next time,
-                            if(IF_arbiter_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]}) begin// || IF_arbiter_bus_resp == 0) begin
-                                _fetch_count = fetch_count + 2;
-                            end
-                            else if(IF_arbiter_bus_resp == 0) begin
-                                _fetch_count = fetch_count + 1;
-                                if(fetch_count == 14) begin
-                                    _fetch_count = fetch_count + 2;
-                                end
-                            end
-
+                        if(IF_arbiter_bus_respcyc == 1) begin
+                            _instrlist[2*IF_arbiter_ptr] = IF_arbiter_bus_resp[31:0];
+                            _instrlist[2*IF_arbiter_ptr + 1] = IF_arbiter_bus_resp[63:32];
                             IF_arbiter_bus_respack = 1;
                             next_state = WAIT;
+                            if(IF_arbiter_ptr == 7) begin
+                                next_state = GETINSTR;
+                                _getinstr_ready = 1;
+                            end
                         end else begin
                             next_state = WAIT;
                         end
@@ -514,6 +495,11 @@ module top
             GETINSTR: begin
                     //If it is being stalled, then don't do anything unless there's jumpbit.
                     if(IF_stalled) begin
+                        //Acknowledge the resp again.
+                        if(getinstr_ready) begin
+                            IF_arbiter_bus_respack = 1;
+                        end
+
                         if(jumpbit) begin
                             _pc = jump_to_addr - jump_to_addr%64; //align by 64.
                             next_state = FETCH;

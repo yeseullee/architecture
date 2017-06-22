@@ -111,6 +111,11 @@ module arbiter
 					else begin
 						next_state = ACCEPT;
 					end
+
+                                        //if for some odd reason there's bus_resp...
+                                        if(bus_respcyc) begin
+                                            bus_respack = 1;
+                                        end
 				end
 			READVAL: begin
 					//read value to be written from processor
