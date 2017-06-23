@@ -66,6 +66,8 @@ module top
     logic [63:0] cur_a5;
     logic [63:0] cur_a6;
     logic [63:0] cur_a7;
+    logic ecall_now;
+    logic pending_write;
 
     //For jumps
     reg jumpbit; 
@@ -128,6 +130,9 @@ module top
     logic [1:0] _ID_ecall;
     logic [2:0] ID_isBranch;
     logic [2:0] _ID_isBranch;
+    logic ID_isW;
+    logic _ID_isW;
+
     logic [63:0] ID_pc;
     logic [63:0] _ID_pc;
     //Valid instruction
@@ -150,7 +155,6 @@ module top
     logic [3:0] RD_instr_type;
     logic [3:0] _RD_instr_type;
 
-    // Also pass these .. (from Reg file output)
     logic [63:0] RD_rs1_val;
     logic [63:0] _RD_rs1_val;
     logic [63:0] RD_rs2_val;
@@ -167,6 +171,8 @@ module top
     logic [2:0] _RD_mem_size;
     logic [2:0] RD_isBranch;
     logic [2:0] _RD_isBranch;
+    logic RD_isW;
+    logic _RD_isW;
     logic [63:0] RD_pc;
     logic [63:0] _RD_pc;
     //ECALL wires and registers
@@ -208,7 +214,7 @@ module top
     logic EX_stalled;
 
     //MEMORY WIRES & REGISTERS
-    //logic [63:0] MEM_alu_result;
+    logic [63:0] MEM_alu_result;
     logic [63:0] _MEM_alu_result;
     logic [63:0] MEM_value;
     logic [63:0] _MEM_value;
@@ -261,12 +267,13 @@ module top
     logic [63:0] _WB_write_val;
     logic WB_write_sig;
     logic _WB_write_sig;
-    logic _WB_mem_access;
-    logic _WB_mem_size;
-    logic _WB_alu_result;
+    logic [1:0] _WB_mem_access;
+    logic [4:0] _WB_mem_size;
     logic [63:0] _WB_rs2_value;
     //ECALL wires and registers
+    logic [63:0] _WB_address;
     logic [1:0] _WB_ecall;
+    logic [63:0] WB_a0;
     logic [63:0] _WB_a0;
     logic [63:0] _WB_a1;
     logic [63:0] _WB_a2;
@@ -598,7 +605,7 @@ module top
     end
 
     always_comb begin
-
+	
         if(cache == 1) begin
             MEM_cache_bus_reqcyc = 0;
             MEM_cache_bus_respack = 0;
@@ -655,6 +662,7 @@ module top
         _RD_rs1 = ID_rs1;
         _RD_rs2 = ID_rs2;
         _RD_isBranch = ID_isBranch;
+        _RD_isW = ID_isW;
         _RD_pc = ID_pc;
 
         //If it's not the current instr that's writing to it, for rs1 or rs2, stall.
@@ -909,15 +917,29 @@ module top
 
         // WRITE BACK STAGE.
         _WB_valid_instr = MEM_valid_instr;
-
+ 	ecall_now = 0;
+        pending_write = 0;
         // NOTE: There shouldn't be any stall on WB. 
-        // If not valid instr and it's not ecall
-        if(!_WB_valid_instr && ecall_count == 0) begin
+  
+        // If there's ecall going on...
+        if(ecall_count > 0) begin
+        
+            _ecall_count = ecall_count - 1;
+            if(_ecall_count == 0) begin
+                _ecall_stallstate = 0;
+            end
+                
+            _WB_write_reg = 10;
+            _WB_write_val = WB_a0;
+            _WB_write_sig = 1;
+        end
+        // Else if the instr is not valid
+        else if(!_WB_valid_instr) begin
             _WB_write_sig = 0;
         end
-        // If it is a valid instruction passed from MEM or it is an ecall, execute this stage.
+        // If it is a valid instruction passed from MEM, execute this stage.
         else begin
-       
+
             //To write back to the register file.
             //There should be write signal.
             _WB_instr = MEM_instr;
@@ -926,8 +948,8 @@ module top
             _WB_write_sig = MEM_write_sig;
             _WB_ecall = MEM_ecall;
             _WB_mem_access = MEM_access;
-            _WB_mem_size = MEM_size;
             _WB_rs2_value = MEM_rs2_val;
+            _WB_address = MEM_alu_result;
             _WB_pc = MEM_pc;
             _WB_a0 = cur_a0;
             _WB_a1 = cur_a1;
@@ -938,33 +960,31 @@ module top
             _WB_a6 = cur_a6;
             _WB_a7 = cur_a7;
 
+            case(MEM_size)
+                // _WB_mem_size should be in terms of bytes.
+                `MEM_BYTE: _WB_mem_size = 1;
+                `MEM_US_BYTE: _WB_mem_size = 1;
+                `MEM_HALF: _WB_mem_size = 2;
+                `MEM_US_HALF: _WB_mem_size = 2;
+                `MEM_WORD: _WB_mem_size = 4;
+                `MEM_US_WORD: _WB_mem_size = 4;
+                `MEM_DOUBLE: _WB_mem_size = 8;
+                default: _WB_mem_size = 0;
+            endcase
+
             //This is for Stall...
             //If WB wrote to the reg, then clear it on writinglist.
             if(writinglist[MEM_write_reg][32] && (writinglist[MEM_write_reg][31:0] == MEM_instr)) begin
                 _writinglist[MEM_write_reg] = {32'b0};
             end
 
-            if(_WB_ecall == 1) begin
-                //_WB_write_sig = 0;
-                if(ecall_count == 0) begin
-                    _ecall_count = 2;
-                end else begin
-                    _ecall_count = ecall_count - 1;
-                    if(_ecall_count == 0) begin
-                  //      _WB_write_sig = 1;
-                        _ecall_stallstate = 0;
-                    end
-                end
-                //TODO: stall from READ. didn't do that yet.
-                do_ecall(_WB_a7, _WB_a0, _WB_a1, _WB_a2, _WB_a3, _WB_a4, _WB_a5, _WB_a6, _WB_a0);
-                _WB_write_reg = 10;
-                _WB_write_val = _WB_a0;
-                _WB_write_sig = 1;
-
+            if(_WB_ecall) begin
+                _ecall_count = 4;
+	        ecall_now = 1;
             end
 
             if(_WB_mem_access == `MEM_WRITE) begin
-                do_pending_write(_WB_write_val, _WB_rs2_value, _WB_mem_size);
+                pending_write = 1;
             end
 
             //This is for detecting the last instr.
@@ -972,9 +992,6 @@ module top
                 _last_instr = {1'b1,MEM_instr};
             end
 
-            if(jumpbit) begin
-                    //Clear the buffer. // Done in GETINSTR
-            end
         end
 
     end
@@ -994,7 +1011,7 @@ module top
                 .alu_op(_ID_alu_op), .shamt(_ID_shamt), 
                 .reg_write(_ID_write_sig), .instr_type(_ID_instr_type), 
                 .mem_access(_ID_mem_access), .mem_size(_ID_mem_size),
-                .isECALL(_ID_ecall), .isBranch(_ID_isBranch)
+                .isECALL(_ID_ecall), .isBranch(_ID_isBranch), .isW(_ID_isW)
     );
 
     // In READ state and WRITEBACK state
@@ -1023,6 +1040,7 @@ module top
                 //INPUTS
                 .clk(clk), .opcode(RD_alu_op), .value1(RD_rs1_val),
                 .value2(RD_rs2_val), .immediate(RD_immediate), .shamt(RD_shamt), .instr_type(RD_instr_type),
+                .isW(RD_isW),
 
                 //OUTPUTS
                 .result(_EX_alu_result)
@@ -1057,6 +1075,13 @@ module top
         mem_stallstate <= _mem_stallstate;
         ecall_stallstate <= _ecall_stallstate;
         ecall_count <= _ecall_count;
+        if (ecall_now) begin
+            do_ecall(_WB_a7, _WB_a0, _WB_a1, _WB_a2, _WB_a3, _WB_a4, _WB_a5, _WB_a6, _WB_a0);
+        end
+        WB_a0 <= _WB_a0;
+        if(pending_write) begin
+            do_pending_write(_WB_address,_WB_write_val, _WB_mem_size);
+        end
 
         for (int i = 0; i < 32; i++) begin
             writinglist[i] <= _writinglist[i];
@@ -1109,8 +1134,10 @@ module top
             ID_mem_size <= _ID_mem_size;
             ID_ecall <= _ID_ecall;
             ID_isBranch <= _ID_isBranch;
+            ID_isW <= _ID_isW;
 
             ID_stalled <= 0;
+
             ID_valid_instr <= _ID_valid_instr;
         end else begin
             // Stalling
@@ -1138,6 +1165,7 @@ module top
             RD_rs2 <= _RD_rs2;
             RD_isBranch <= _RD_isBranch;
             RD_ecall <= _RD_ecall;
+            RD_isW <= _RD_isW;
 
             RD_stalled <= 0;
             RD_valid_instr <= _RD_valid_instr;
@@ -1173,8 +1201,9 @@ module top
 
         if(_read_stallstate < MEM && _jump_stallstate < MEM && _mem_stallstate < MEM) begin
             //set MEM registers
+            MEM_alu_result <= _MEM_alu_result; // this is the address to store to in mem.
             MEM_write_reg <= _MEM_write_reg;
-            MEM_value <= _MEM_value;
+            MEM_value <= _MEM_value; // This is the value that comes out from mem stage.
             MEM_str_value <= _MEM_str_value;
             MEM_write_sig <= _MEM_write_sig;
             MEM_status <= _MEM_status;

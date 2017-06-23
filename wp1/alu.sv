@@ -8,6 +8,7 @@ module alu
 	  input signed [31:0] immediate,
 	  input [5:0] shamt,
 	  input [3:0] instr_type,
+          input isW,
 	  output signed [63:0] result
 	);
 
@@ -18,10 +19,6 @@ module alu
 	logic signed [127:0] long_result = 0;
 	logic unsigned [63:0] check = 0;
 
-	//TODO: Deal with firstval and secondval.
-	//TODO: W instructions and Unsigned instructions.
-	//TODO: Deal with shifting + use shamt.
-
 	always_comb begin	
 	    //Both firstVal and secondVal are signed by default.
 	    firstVal = $signed(value1);
@@ -29,11 +26,23 @@ module alu
             u_firstVal = $unsigned(value1);
             u_secondVal = $unsigned(value2);
 
-	    if (instr_type == `RTYPE) begin
-		secondVal = $signed(value2);
-                u_secondVal = $unsigned(value2);
-	    end
-	    if (instr_type == `ITYPE || instr_type == `STYPE) begin
+            if(isW == 1) begin
+                firstVal = {32'b0,  firstVal[31:0]};
+                secondVal = {32'b0, secondVal[31:0]};
+                u_firstVal = {32'b0, u_firstVal[31:0]};
+                u_secondVal = {32'b0, u_secondVal[31:0]};
+	    	if (opcode == `SLL || opcode == `SRL || opcode == `SRA) begin
+                    if (instr_type == `RTYPE) begin
+                        // rs2[4:0]
+                        u_secondVal = {59'b0, u_secondVal[4:0]};
+                    end
+                    if (instr_type == `ITYPE) begin
+                        //lower six bits of immediate in shamt
+		        u_secondVal = $unsigned(shamt);
+                    end
+		end		
+            end
+	    else if (instr_type == `ITYPE || instr_type == `STYPE) begin
 		secondVal = $signed(immediate);
                 u_secondVal = $unsigned(immediate);
 	    	if (opcode == `SLL || opcode == `SRL || opcode == `SRA) begin
@@ -88,9 +97,9 @@ module alu
                         result = u_firstVal % u_secondVal; 
 		    end
 		`NOT: result = ~firstVal;
-		`SLL: result = u_firstVal << u_secondVal[5:0];
-		`SRL: result = u_firstVal >> u_secondVal[5:0];
-		`SRA: result = u_firstVal >>> u_secondVal[5:0];
+		`SLL: result = u_firstVal << u_secondVal;
+		`SRL: result = u_firstVal >> u_secondVal;
+		`SRA: result = u_firstVal >>> u_secondVal;
 		`LESS:
 		    //used by SLTI (both signed numbers) 
 		    begin
@@ -162,6 +171,9 @@ module alu
 		`NOTHING: ;//_result = result;
 		//default: _result = value1;
 	    endcase
+            if(isW == 1) begin
+                result = $signed(result[31:0]);
+            end
 	end
 
 	always_ff @ (posedge clk) begin

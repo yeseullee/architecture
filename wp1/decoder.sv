@@ -21,7 +21,8 @@ module decoder
 	  output [1:0] mem_access,
 	  output [2:0] mem_size,
           output [1:0] isECALL,
-          output [2:0] isBranch
+          output [2:0] isBranch,
+          output isW
 	);
 
 	logic [6:0] opcode = instruction[6:0];
@@ -60,6 +61,7 @@ module decoder
 		mem_size = `MEM_NO_SIZE;
                 isECALL = 0;
                 isBranch = 0;
+                isW = 0;
 
 		//set immediate values
 		jal_imm = {{12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0};
@@ -191,7 +193,7 @@ module decoder
 							end
 						3'b001: begin
 								$display("sh $%d, %d($%d)", rs2, s_imm, rs1);
-								alu_op = 4`ADD;
+								alu_op = `ADD;
 								mem_size = `MEM_HALF;
 							end
 						3'b010: begin
@@ -217,21 +219,21 @@ module decoder
 								case(func7)
 									7'b0000000: begin
 											$display("addw $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op =4'b0001;
+											alu_op =`ADD;
 										end
 									7'b0000001: begin
 											$display("mulw $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op = 4'b0011;
+											alu_op = `MUL;
 										end
 									7'b0100000: begin
 											if(rs1 == 0) begin
 												//pseudo-instruction for "subw rd, x0, rs2"
 												$display("negw $%d, $%d", rd, rs2);
-												alu_op = 4'd2;
+												alu_op = `SUB;
 											end
 											else begin
 												$display("subw $%d, $%d, $%d", rd, rs1, rs2);
-												alu_op = 4'd2;
+												alu_op = `SUB;
 											end
 										end
 								endcase
@@ -242,7 +244,7 @@ module decoder
 							end
 						3'b100: begin
 								$display("divw $%d, $%d, $%d", rd, rs1, rs2);
-								alu_op = 4'b0100;
+								alu_op = `DIV;
 							end
 						3'b101: begin
 								case(func7)
@@ -252,7 +254,7 @@ module decoder
 										end
 									7'b0000001: begin
 											$display("divuw $%d, $%d, $%d", rd, rs1, rs2);
-											alu_op = 4'b0100;
+											alu_op = `DIVU;
 										end
 									7'b0100000: begin
 											$display("sraw $%d, $%d, $%d", rd, rs1, rs2);
@@ -269,6 +271,7 @@ module decoder
 								alu_op = `REMU;
 							end
 					endcase
+                                        isW = 1;
 					reg_write = 1;
 					instr_type = `RTYPE;
 				end
@@ -553,13 +556,14 @@ module decoder
 								if(i_imm == 0) begin
 									//pseudo-instruction for "addiw rd, rs1, x0"
 									$display("sext.w $%d, $%d", rd, rs1);
+                                                                        immediate = i_imm;
 									alu_op = `ADD;
 									//since it's a pseudo instructionm, should have same as addiw
 								end
 								else begin
 									$display("addiw $%d, $%d, %d", rd, rs1, i_imm);
 									immediate = i_imm;
-									alu_op = 4'b0001;
+									alu_op = `ADD;
 								end
 							end
 						3'b001: begin
@@ -582,7 +586,7 @@ module decoder
 								endcase
 							end
 					endcase
-					immediate = i_imm;
+					isW = 1;
 					reg_write = 1;
 					instr_type = `ITYPE;
 				end

@@ -19,6 +19,7 @@ extern "C" {
     }
 
     void do_pending_write(long long addr, long long val, int size) {
+        // If there's more pending writes than the max, write them and delete them from the dict.
         if (pending_writes.size() > MAX_PENDING_WRITES) {
             for(int i = 0; i < MAX_PENDING_WRITES/10; ++i) {
                 auto pw = pending_writes.begin();
@@ -26,9 +27,10 @@ extern "C" {
                 pending_writes.erase(pw);
             }
         }
+        //Add the current pending write by char. 
         for(int ofs = 0; ofs < size; ++ofs) {
             pending_writes[addr+ofs] = (char)val;
-            val >>= 8;
+            val >>= 8; //val = val shifted right by 8 bits.
         }
     }
 
@@ -372,7 +374,7 @@ extern "C" {
                 System::sys->ram[pw->first] = pw->second;
                 pending_writes.erase(pw);
             }
-        if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7;
+        if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7 << endl;
 
         iovec* iov = (iovec*)a1;
         if (a7 == __NR_writev)
@@ -392,7 +394,7 @@ extern "C" {
 
         if (ECALL_DEBUG) cerr << " => " << std::dec << *a0ret << endl;
         // Checking the value in ram?
-        // cerr << "Value: " << *((uint64_t*)&System::sys->ram[0x97128]) << std::dec;
+        //cerr << "Value: " << *((uint64_t*)&System::sys->ram[0x97128]) << std::dec;
 
         set<long long> invalidations;
         for(auto& m : memargs)
