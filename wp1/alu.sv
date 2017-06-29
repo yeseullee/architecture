@@ -40,7 +40,12 @@ module alu
                         //lower six bits of immediate in shamt
 		        u_secondVal = $unsigned(shamt);
                     end
-		end		
+		end
+                else if (instr_type == `ITYPE) begin
+                    secondVal = $signed(immediate);
+                    u_secondVal = $unsigned(immediate);
+                    
+                end		
             end
 	    else if (instr_type == `ITYPE || instr_type == `STYPE) begin
 		secondVal = $signed(immediate);

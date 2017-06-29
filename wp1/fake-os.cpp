@@ -19,7 +19,6 @@ extern "C" {
     }
 
     void do_pending_write(long long addr, long long val, int size) {
-        // If there's more pending writes than the max, write them and delete them from the dict.
         if (pending_writes.size() > MAX_PENDING_WRITES) {
             for(int i = 0; i < MAX_PENDING_WRITES/10; ++i) {
                 auto pw = pending_writes.begin();
@@ -27,10 +26,9 @@ extern "C" {
                 pending_writes.erase(pw);
             }
         }
-        //Add the current pending write by char. 
         for(int ofs = 0; ofs < size; ++ofs) {
             pending_writes[addr+ofs] = (char)val;
-            val >>= 8; //val = val shifted right by 8 bits.
+            val >>= 8;
         }
     }
 
@@ -38,13 +36,16 @@ extern "C" {
 #define ECALL_MEMGUARD (10*1024)
 
     void do_ecall(long long a7, long long a0, long long a1, long long a2, long long a3, long long a4, long long a5, long long a6, long long* a0ret) {
-        vector<pair<long long, char[ECALL_MEMGUARD]> > memargs;
+        vector<pair<long long, char[ECALL_MEMGUARD+63]> > memargs;
 
         switch(a7) {
 
         case __NR_brk:
             if (ECALL_DEBUG) cerr << "Allocate " << std::dec << a0 << " bytes at 0x" << std::hex << System::sys->ecall_brk << std::dec << endl;
-            if ((a0 > System::sys->max_elf_addr) && (a0 < System::sys->ramsize)) System::sys->ecall_brk = a0;
+            if ((a0 > System::sys->max_elf_addr) && (a0 < System::sys->ramsize)) {
+                for(long long addr = System::sys->ecall_brk; addr < a0; ++addr) System::sys->virt_to_phy(addr); // prefault
+                System::sys->ecall_brk = a0;
+            }
             *a0ret = System::sys->ecall_brk;
             return;
 
@@ -52,6 +53,7 @@ extern "C" {
             assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
             System::sys->ecall_brk = (System::sys->ecall_brk + PAGE_SIZE-1) & ~(PAGE_SIZE-1); // align to 4K boundary
             *a0ret = System::sys->ecall_brk;
+            for(long long addr = System::sys->ecall_brk; addr < System::sys->ecall_brk+a1; ++addr) System::sys->virt_to_phy(addr); // prefault
             System::sys->ecall_brk += a1;
             System::sys->ecall_brk = (System::sys->ecall_brk + PAGE_SIZE-1) & ~(PAGE_SIZE-1); // align to 4K boundary
             return;
@@ -69,10 +71,12 @@ extern "C" {
         case 1244/*__NR_arch_specific_syscall*/:
             switch(a0) {
                 case 1/*RISCV_ATOMIC_CMPXCHG*/:
+                    a1 = System::sys->virt_to_phy(a1);
                     if (*(uint32_t*)&System::sys->ram[a1] == a2) *(uint32_t*)&System::sys->ram[a1] = a3;
                     *a0ret = a2;
                     return;
                 case 2/*RISCV_ATOMIC_CMPXCHG64*/:
+                    a1 = System::sys->virt_to_phy(a1);
                     if (*(uint64_t*)&System::sys->ram[a1] == a2) *(uint64_t*)&System::sys->ram[a1] = a3;
                     *a0ret = a2;
                     return;
@@ -96,15 +100,15 @@ extern "C" {
             *a0ret = 0;
             return;
 
-#define ECALL_OFFSET(v)                                                 \
-    do {                                                                \
-        memargs.resize(memargs.size()+1);                               \
-        memargs.back().first = v;                                       \
-        for(int i = 0; i < ECALL_MEMGUARD; ++i) {                       \
-            long long srcptr = System::sys->virt_to_phy((v & ~63) + i); \
-            memargs.back().second[i] = System::sys->ram[srcptr];        \
-        }                                                               \
-        v += (long long)System::sys->ram_virt;                          \
+#define ECALL_OFFSET(v)                                                  \
+    do {                                                                 \
+        memargs.resize(memargs.size()+1);                                \
+        memargs.back().first = v;                                        \
+        for(int i = 0; i < ECALL_MEMGUARD; ++i) {                        \
+            long long physptr = System::sys->virt_to_phy((v & ~63) + i); \
+            memargs.back().second[i] = System::sys->ram[physptr];        \
+        }                                                                \
+        v += (long long)System::sys->ram_virt;                           \
     } while(0)
 
         case __NR_open:
@@ -369,12 +373,15 @@ extern "C" {
         }
         for(auto& m : memargs)
             for(int i = 0; i < ECALL_MEMGUARD; ++i) {
-                auto pw = pending_writes.find((m.first & ~63)+i);
+                long long physptr = System::sys->virt_to_phy((m.first & ~63) + i);
+                auto pw = pending_writes.find(physptr);
                 if (pw == pending_writes.end()) continue;
                 System::sys->ram[pw->first] = pw->second;
                 pending_writes.erase(pw);
             }
-        if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7 << endl;
+
+        cerr << "Before Value: " << *((uint64_t*)&System::sys->ram[0x3fbffd18]) << std::dec << std::endl;
+        if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7;
 
         iovec* iov = (iovec*)a1;
         if (a7 == __NR_writev)
@@ -393,16 +400,18 @@ extern "C" {
                 iov[i].iov_base = (char*)iov[i].iov_base - (long long)System::sys->ram_virt;
 
         if (ECALL_DEBUG) cerr << " => " << std::dec << *a0ret << endl;
-        // Checking the value in ram?
-        //cerr << "Value: " << *((uint64_t*)&System::sys->ram[0x97128]) << std::dec;
+	cerr << "Value-a5: " << *((uint64_t*)&System::sys->ram[0x3fbffd9a]) << std::hex << endl;
+
+	//cerr << "After Value: " << *((uint64_t*)&System::sys->ram[0x3fbffd18]) << std::dec << std::endl;
+        //cerr << "After Value: " << *((uint64_t*)&System::sys->ram[0x3fbffd9a]) << std::dec << std::endl;
 
         set<long long> invalidations;
         for(auto& m : memargs)
             for(int i = 0; i < ECALL_MEMGUARD; ++i) {
-                long long srcptr = System::sys->virt_to_phy((m.first & ~63) + i);
-                if (m.second[i] != System::sys->ram[srcptr]) {
-                    if (ECALL_DEBUG) cerr << "Invalidating " << std::dec << i << " on argument " << std::hex << m.first << "/" << System::sys->ram[srcptr] << endl;
-                    invalidations.insert(m.first & ~63);
+                long long physptr = System::sys->virt_to_phy((m.first & ~63) + i);
+                if (m.second[i] != System::sys->ram[physptr]) {
+                    if (ECALL_DEBUG) cerr << "Invalidating " << std::dec << i << " on argument " << std::hex << physptr << "/" << m.first << "/" << System::sys->ram[physptr] << endl;
+                    invalidations.insert(physptr & ~63);
                 }
             }
         for(auto& i : invalidations)

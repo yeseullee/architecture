@@ -15,6 +15,8 @@
 #include "system.h"
 #include "Vtop.h"
 
+#define STACK_PAGES     (100)
+
 using namespace std;
 
 enum {
@@ -49,7 +51,7 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
     assert(ram_virt != MAP_FAILED);
     top->satp = get_phys_page() << 12;
     top->stackptr = ramsize - 4*MEGA;
-    virt_to_phy(top->stackptr - PAGE_SIZE); // allocate stack page
+    for(int n = 1; n < STACK_PAGES; ++n) virt_to_phy(top->stackptr - PAGE_SIZE*n); // allocate stack pages
 
     uint64_t* argvp = (uint64_t*)(ram+virt_to_phy(top->stackptr));
     argvp[0] = argc;
@@ -65,6 +67,7 @@ System::System(Vtop* top, unsigned ramsize, const char* ramelf, const int argc, 
             dst++;
         } while(*(src++));
     }
+    virt_to_phy(0); // TODO: must initialize auxv vector with AT_RANDOM value.  until then, _dl_random will be a null pointer, so need to prefault address 0
 
     // load the program image
     if (ramelf) top->entry = load_elf(ramelf);
@@ -269,7 +272,10 @@ uint64_t System::get_pte(uint64_t base_addr, int vpn, bool isleaf, bool& allocat
 
 uint64_t System::virt_to_phy(const uint64_t virt_addr) {
 
-    if (!use_virtual_memory) return virt_addr;
+    if (!use_virtual_memory) {
+      assert(virt_addr < ramsize);
+      return virt_addr;
+    }
 
     bool allocated;
     uint64_t pt_base_addr = top->satp;
@@ -290,7 +296,7 @@ uint64_t System::virt_to_phy(const uint64_t virt_addr) {
 
 void System::load_segment(const int fd, const size_t memsz, const size_t filesz, uint64_t virt_addr) {
     if (VM_DEBUG) cout << "Read " << std::dec << filesz << " bytes at " << std::hex << virt_addr << endl;
-    for(size_t i = 0; i < memsz; ++i) virt_to_phy((virt_addr + i) & ~(PAGE_SIZE-1)); // prefault
+    for(size_t i = 0; i < memsz; ++i) virt_to_phy(virt_addr + i); // prefault
     assert(filesz == read(fd, &ram_virt[virt_addr], filesz));
 }
 

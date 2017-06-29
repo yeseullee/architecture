@@ -549,6 +549,10 @@ module top
                             _index_from_pc = 0;
                             _instr_index = index_from_pc;
                             _IF_pc = index_from_pc*4 + pc;
+
+                            for (int i = 0; i < 32; i++) begin
+                                _writinglist[i] = 0;
+                            end
                         end else begin
                             //If not jumping then it should be fetching new instr. so index = 0.
                             _instr_index = 0;
@@ -565,10 +569,10 @@ module top
                             _IF_valid_instr = 0; // INVALID //
                             next_state = IDLE;
                         end
-
-                        for (int i = 0; i < 32; i++) begin
+                        // TODO this may cause bug. 
+                        /*for (int i = 0; i < 32; i++) begin
                             _writinglist[i] = 0;
-                        end
+                        end*/
                     end
                     // instr_index = 1,2,... 
                     else begin
