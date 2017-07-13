@@ -531,7 +531,7 @@ module top
                         end
                     end
 
-                    // After fetch, instr_index = 0
+                    // After fetch, first instr
                     else if(getinstr_ready == 1) begin
                         if(cache == 1) begin
                             IF_cache_bus_respack = 1;
@@ -569,10 +569,6 @@ module top
                             _IF_valid_instr = 0; // INVALID //
                             next_state = IDLE;
                         end
-                        // TODO this may cause bug. 
-                        /*for (int i = 0; i < 32; i++) begin
-                            _writinglist[i] = 0;
-                        end*/
                     end
                     // instr_index = 1,2,... 
                     else begin

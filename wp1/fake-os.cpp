@@ -59,6 +59,7 @@ extern "C" {
             return;
 
         case __NR_munmap:
+        case __NR_mprotect:
             *a0ret = 0; // don't bother unmapping
             return;
 
@@ -112,6 +113,7 @@ extern "C" {
     } while(0)
 
         case __NR_open:
+//        case __NR_mprotect: // added 
         case __NR_poll:
         case __NR_access:
         case __NR_pipe:
@@ -400,8 +402,9 @@ extern "C" {
                 iov[i].iov_base = (char*)iov[i].iov_base - (long long)System::sys->ram_virt;
 
         if (ECALL_DEBUG) cerr << " => " << std::dec << *a0ret << endl;
-	cerr << "Value-a5: " << *((uint64_t*)&System::sys->ram[0x3fbffd9a]) << std::hex << endl;
+	cerr << "malloc 95c28: " << *((uint64_t*)&System::sys->ram[0x95c28]) << std::hex << endl;
 
+	cerr << "malloc 28: " << *((uint64_t*)&System::sys->ram[0x28]) << std::hex << endl;
 	//cerr << "After Value: " << *((uint64_t*)&System::sys->ram[0x3fbffd18]) << std::dec << std::endl;
         //cerr << "After Value: " << *((uint64_t*)&System::sys->ram[0x3fbffd9a]) << std::dec << std::endl;
 

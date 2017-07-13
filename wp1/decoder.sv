@@ -513,7 +513,7 @@ module decoder
 								end
 							end
 						3'b100: begin
-								if(&i_imm == 1'b1) begin
+								if(i_imm == -1) begin
 									//pseudo-instruction for "xori rd, rs1, -1"
 									$display("not $%d, $%d", rd, rs1);
 									alu_op = `XOR;
@@ -571,7 +571,7 @@ module decoder
 								immediate = {26'b0, shamt};
 								alu_op = `SLL;
 							end
-						3'b010: begin
+						3'b101: begin
 								case(func7)
 									7'b0000000: begin
 											$display("srliw $%d, $%d %d", rd, rs1, shamt);
@@ -590,6 +590,26 @@ module decoder
 					reg_write = 1;
 					instr_type = `ITYPE;
 				end
+                        //Ecall
+                        7'b1110011: begin
+                                        //For ECALL instruction.
+                                        if(instruction == {57'b0, 7'b1110011}) begin
+	                                    rd=0;
+	                                    rs1=0;
+	                                    rs2=0;
+	                                    immediate=0;
+	                                    alu_op=0;
+	                                    shamt=0;
+	                                    reg_write=0;
+	                                    instr_type=0;
+	                                    mem_access=0;
+	                                    mem_size=0;
+                                            isECALL = 1;
+                                            isBranch = 0;
+                                        end else begin
+			                    $display("This instruction is not recognized: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
+                                        end
+                                    end
 
 			//default cases
 			7'b0000000: ;//$display("This instruction has been decoded before: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);

@@ -3,13 +3,13 @@ module alu
 	(
 	  input  clk,
 	  input [10:0] opcode,
-	  input signed [63:0] value1,
-	  input signed [63:0] value2,
-	  input signed [31:0] immediate,
+	  input [63:0] value1,
+	  input [63:0] value2,
+	  input [31:0] immediate,
 	  input [5:0] shamt,
 	  input [3:0] instr_type,
           input isW,
-	  output signed [63:0] result
+	  output [63:0] result
 	);
 
 	logic signed [63:0] firstVal = 0;
@@ -17,54 +17,64 @@ module alu
 	logic signed [63:0] secondVal = 0;
 	logic unsigned [63:0] u_secondVal = 0;
 	logic signed [127:0] long_result = 0;
-	logic unsigned [63:0] check = 0;
+
+        logic [5:0] shift_amount = 0;
+        logic [63:0] temporary_result = 0;
 
 	always_comb begin	
 	    //Both firstVal and secondVal are signed by default.
 	    firstVal = $signed(value1);
-	    secondVal = $signed(value2);
             u_firstVal = $unsigned(value1);
-            u_secondVal = $unsigned(value2);
 
-            if(isW == 1) begin
-                firstVal = {32'b0,  firstVal[31:0]};
-                secondVal = {32'b0, secondVal[31:0]};
-                u_firstVal = {32'b0, u_firstVal[31:0]};
-                u_secondVal = {32'b0, u_secondVal[31:0]};
-	    	if (opcode == `SLL || opcode == `SRL || opcode == `SRA) begin
-                    if (instr_type == `RTYPE) begin
-                        // rs2[4:0]
-                        u_secondVal = {59'b0, u_secondVal[4:0]};
-                    end
-                    if (instr_type == `ITYPE) begin
-                        //lower six bits of immediate in shamt
-		        u_secondVal = $unsigned(shamt);
-                    end
-		end
-                else if (instr_type == `ITYPE) begin
-                    secondVal = $signed(immediate);
-                    u_secondVal = $unsigned(immediate);
-                    
-                end		
-            end
-	    else if (instr_type == `ITYPE || instr_type == `STYPE) begin
+	    if (instr_type == `ITYPE || instr_type == `STYPE) begin
 		secondVal = $signed(immediate);
                 u_secondVal = $unsigned(immediate);
-	    	if (opcode == `SLL || opcode == `SRL || opcode == `SRA) begin
-		    u_secondVal = $unsigned(shamt);
-		end		
-	    end
+	    end else begin
+	        secondVal = $signed(value2);
+	        u_secondVal = $unsigned(value2);
+            end
 
+	    if (opcode == `SLL || opcode == `SRL || opcode == `SRA) begin
+		if(instr_type == `RTYPE) begin
+                    if(isW)begin
+                        shift_amount = {1'b0,value2[4:0]};
+                    end else begin
+                        shift_amount = value2[5:0];
+                    end
+                end else if(instr_type == `ITYPE) begin
+                    shift_amount = shamt;
+                end
+	    end		
+	    
 	    case(opcode)
 		`ADD: 
 		    begin
 			//ADD, ADDI, LI, MV, load, store, etc. use this.
-			result = firstVal + secondVal;
+                        if(isW) begin
+			    temporary_result = firstVal[31:0] + secondVal[31:0];
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = firstVal + secondVal;
+                        end
 	            end
-		`SUB: result = firstVal - secondVal;
+		`SUB:
+		    begin
+			//ADD, ADDI, LI, MV, load, store, etc. use this.
+                        if(isW) begin
+			    temporary_result = firstVal[31:0] - secondVal[31:0];
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = firstVal - secondVal;
+                        end
+	            end
 		`MUL: 
 		    begin
-			result = firstVal * secondVal;
+                        if(isW) begin
+			    temporary_result = firstVal[31:0] * secondVal[31:0];
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = firstVal * secondVal;
+                        end
 		    end
 		`MULH: 
 		    begin
@@ -83,11 +93,21 @@ module alu
 		    end
 		`DIV: 
 		    begin //Signed div
-			result = firstVal / secondVal;
+                        if(isW) begin
+			    temporary_result = firstVal[31:0] / secondVal[31:0];
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = firstVal / secondVal;
+                        end
 		    end
 		`DIVU: 
 		    begin //Unsigned div
-                        result = u_firstVal / u_secondVal;       
+                        if(isW) begin
+			    temporary_result = u_firstVal[31:0] / u_secondVal[31:0];
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = u_firstVal / u_secondVal;
+                        end
                     end
 		`XOR: result = firstVal ^ secondVal;
 		`AND: result = firstVal & secondVal;
@@ -95,16 +115,50 @@ module alu
 			
 		`REM: 
 		    begin //remainder from signed div.
-		        result = firstVal % secondVal; 
+                        if(isW) begin
+			    temporary_result = firstVal[31:0] % secondVal[31:0];
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = firstVal % secondVal;
+                        end
 		    end
 		`REMU: 
 		    begin //remainder from unsigned div.
-                        result = u_firstVal % u_secondVal; 
+                        if(isW) begin
+			    temporary_result = u_firstVal[31:0] % u_secondVal[31:0];
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = u_firstVal % u_secondVal;
+                        end
 		    end
 		`NOT: result = ~firstVal;
-		`SLL: result = u_firstVal << u_secondVal;
-		`SRL: result = u_firstVal >> u_secondVal;
-		`SRA: result = u_firstVal >>> u_secondVal;
+		`SLL: 
+		    begin
+			if(isW) begin
+			    temporary_result = firstVal[31:0] << shift_amount;
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = firstVal << shift_amount;
+                        end
+                    end
+		`SRL:
+		    begin
+			if(isW) begin
+			    temporary_result = firstVal[31:0] >> shift_amount;
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = firstVal >> shift_amount;
+                        end
+                    end
+		`SRA:
+		    begin
+			if(isW) begin
+			    temporary_result = firstVal[31:0] >>> shift_amount;
+                            result = {{32{temporary_result[31]}}, temporary_result[31:0]};
+                        end else begin
+			    result = firstVal >>> shift_amount;
+                        end
+                    end
 		`LESS:
 		    //used by SLTI (both signed numbers) 
 		    begin
@@ -176,9 +230,6 @@ module alu
 		`NOTHING: ;//_result = result;
 		//default: _result = value1;
 	    endcase
-            if(isW == 1) begin
-                result = $signed(result[31:0]);
-            end
 	end
 
 	always_ff @ (posedge clk) begin
