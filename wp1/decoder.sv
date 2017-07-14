@@ -33,6 +33,7 @@ module decoder
 	logic signed [31:0] jal_imm;
 	logic signed [31:0] u_imm, sb_imm;
 	logic signed [31:0] i_imm, s_imm;
+        logic debug = 0;
 
 /*	//code to ensure each instruction is decoded only once
 	always_comb begin
@@ -64,7 +65,8 @@ module decoder
                 isW = 0;
 
 		//set immediate values
-		jal_imm = {{12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0};
+	//	jal_imm = {{12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0};
+		jal_imm = {{12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:21], 1'b0};
 		u_imm = {instruction[31:12], 12'b0};
 		sb_imm = {{20{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
 		i_imm = {{21{instruction[31]}}, instruction[30:20]};
@@ -76,16 +78,16 @@ module decoder
 			7'b1101111: begin
 					if(rd == 0) begin
 						//pseudo-instruction for "jal x0, offset"
-						$display("j %d", jal_imm);
+						if(debug) $display("j %d", jal_imm);
 						alu_op = `JUMP_UNCOND;
 					end
 					else if(rd == 1) begin
 						//pseudo-instruction for "jal x1, offset"
-						$display("jal %d", jal_imm);
+						if(debug) $display("jal %d", jal_imm);
 						alu_op = `JUMP_UNCOND;
 					end
 					else begin
-						$display("jal $%d, %d", rd, jal_imm);
+						if(debug) $display("jal $%d, %d", rd, jal_imm);
 						alu_op = `JUMP_UNCOND;
 					end
 					immediate = jal_imm + cur_pc;
@@ -97,14 +99,14 @@ module decoder
 
 			//u_instr
 			7'b0110111: begin
-					$display("lui $%d, %d", rd, u_imm);
+					if(debug) $display("lui $%d, %d", rd, u_imm);
 					immediate = u_imm;
 					alu_op = `IMMVAL;
 					instr_type = `UTYPE;
 					reg_write = 1;
 				end
 			7'b0010111: begin
-					$display("auipc $%d, %d", rd, u_imm);
+					if(debug) $display("auipc $%d, %d", rd, u_imm);
 					immediate = u_imm + cur_pc;
 					alu_op = `IMMVAL;
 					instr_type = `UTYPE;
@@ -118,63 +120,63 @@ module decoder
 						3'b000: begin
 								if(rs2 == 0) begin
 									//pseudo-instruction for "beq rs1, x0, offset"
-									$display("beqz $%d, %d", rs1, sb_imm);
+									if(debug) $display("beqz $%d, %d", rs1, sb_imm);
 									alu_op = `EQUAL;
 								end
 								else begin
-									$display("beq $%d, $%d, %d", rs1, rs2, sb_imm);
+									if(debug) $display("beq $%d, $%d, %d", rs1, rs2, sb_imm);
 									alu_op = `EQUAL;
 								end
 							end
 						3'b001: begin
 								if(rs2 == 0) begin
 									//pseudo-instruction for "bne rs1, x0, offset"
-									$display("bnez $%d, %d", rs1, sb_imm);
+									if(debug) $display("bnez $%d, %d", rs1, sb_imm);
 									alu_op = `NEQ;
 								end
 								else begin
-									$display("bne $%d, $%d, %d", rs1, rs2, sb_imm);
+									if(debug) $display("bne $%d, $%d, %d", rs1, rs2, sb_imm);
 									alu_op = `NEQ;
 								end
 							end
 						3'b100: begin
 								if(rs1 == 0) begin
 									//pseudo-instruction for "blt x0, rs2, offset"
-									$display("bgtz $%d, %d", rs2, sb_imm);
+									if(debug) $display("bgtz $%d, %d", rs2, sb_imm);
 									alu_op = `LESS;
 								end
 								else if(rs2 == 0) begin
 									//pseudo-instruction for "blt rs1, x0, offset"
-									$display("bltz $%d, %d", rs1, sb_imm);
+									if(debug) $display("bltz $%d, %d", rs1, sb_imm);
 									alu_op = `LESS;
 								end
 								else begin
-									$display("blt $%d, $%d, %d", rs1, rs2, sb_imm);
+									if(debug) $display("blt $%d, $%d, %d", rs1, rs2, sb_imm);
 									alu_op = `LESS;
 								end
 							end
 						3'b101: begin
 								if(rs1 == 0) begin
 									//pseudo-instruction for "bge x0, rs2, offset"
-									$display("blez $%d, %d", rs2, sb_imm);
+									if(debug) $display("blez $%d, %d", rs2, sb_imm);
 									alu_op = `GTE;
 								end
 								else if(rs2 == 0) begin
 									//pseudo-instruction for "bge rs1, x0, offset"
-									$display("bgez $%d, %d", rs1, sb_imm);
+									if(debug) $display("bgez $%d, %d", rs1, sb_imm);
 									alu_op = `GTE;
 								end
 								else begin
-									$display("bge $%d, $%d, %d", rs1, rs2, sb_imm);
+									if(debug) $display("bge $%d, $%d, %d", rs1, rs2, sb_imm);
 									alu_op = `GTE;
 								end
 							end
 						3'b110: begin
-								$display("bltu $%d, $%d, %d", rs1, rs2, sb_imm);
+								if(debug) $display("bltu $%d, $%d, %d", rs1, rs2, sb_imm);
 								alu_op = `LESSU;
 							end
 						3'b111: begin
-								$display("bgeu $%d, $%d, %d", rs1, rs2, sb_imm);
+								if(debug) $display("bgeu $%d, $%d, %d", rs1, rs2, sb_imm);
 								alu_op = `GTEU;
 							end
 					endcase
@@ -187,22 +189,22 @@ module decoder
 			7'b0100011: begin
 					case(func3)
 						3'b000: begin
-								$display("sb $%d, %d($%d)", rs2, s_imm, rs1);
+								if(debug) $display("sb $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_BYTE;
 							end
 						3'b001: begin
-								$display("sh $%d, %d($%d)", rs2, s_imm, rs1);
+								if(debug) $display("sh $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_HALF;
 							end
 						3'b010: begin
-								$display("sw $%d, %d($%d)", rs2, s_imm, rs1);
+								if(debug) $display("sw $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_WORD;
 							end
 						3'b011: begin
-								$display("sd $%d, %d($%d)", rs2, s_imm, rs1);
+								if(debug) $display("sd $%d, %d($%d)", rs2, s_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_DOUBLE;
 							end
@@ -218,56 +220,56 @@ module decoder
 						3'b000: begin
 								case(func7)
 									7'b0000000: begin
-											$display("addw $%d, $%d, $%d", rd, rs1, rs2);
+											if(debug) $display("addw $%d, $%d, $%d", rd, rs1, rs2);
 											alu_op =`ADD;
 										end
 									7'b0000001: begin
-											$display("mulw $%d, $%d, $%d", rd, rs1, rs2);
+											if(debug) $display("mulw $%d, $%d, $%d", rd, rs1, rs2);
 											alu_op = `MUL;
 										end
 									7'b0100000: begin
 											if(rs1 == 0) begin
 												//pseudo-instruction for "subw rd, x0, rs2"
-												$display("negw $%d, $%d", rd, rs2);
+												if(debug) $display("negw $%d, $%d", rd, rs2);
 												alu_op = `SUB;
 											end
 											else begin
-												$display("subw $%d, $%d, $%d", rd, rs1, rs2);
+												if(debug) $display("subw $%d, $%d, $%d", rd, rs1, rs2);
 												alu_op = `SUB;
 											end
 										end
 								endcase
 							end
 						3'b001: begin
-								$display("sllw $%d, $%d, $%d", rd, rs1, rs2);
+								if(debug) $display("sllw $%d, $%d, $%d", rd, rs1, rs2);
 								alu_op = `SLL;
 							end
 						3'b100: begin
-								$display("divw $%d, $%d, $%d", rd, rs1, rs2);
+								if(debug) $display("divw $%d, $%d, $%d", rd, rs1, rs2);
 								alu_op = `DIV;
 							end
 						3'b101: begin
 								case(func7)
 									7'b0000000: begin
-											$display("srlw $%d, $%d, $%d", rd, rs1, rs2);
+											if(debug) $display("srlw $%d, $%d, $%d", rd, rs1, rs2);
 											alu_op = `SRL;
 										end
 									7'b0000001: begin
-											$display("divuw $%d, $%d, $%d", rd, rs1, rs2);
+											if(debug) $display("divuw $%d, $%d, $%d", rd, rs1, rs2);
 											alu_op = `DIVU;
 										end
 									7'b0100000: begin
-											$display("sraw $%d, $%d, $%d", rd, rs1, rs2);
+											if(debug) $display("sraw $%d, $%d, $%d", rd, rs1, rs2);
 											alu_op = `SRA;
 										end
 								endcase
 							end
 						3'b110: begin
-								$display("remw $%d, $%d, $%d", rd, rs1, rs2);
+								if(debug) $display("remw $%d, $%d, $%d", rd, rs1, rs2);
 								alu_op = `REM;
 							end
 						3'b111: begin
-								$display("remuw $%d, $%d, $%d", rd, rs1, rs2);
+								if(debug) $display("remuw $%d, $%d, $%d", rd, rs1, rs2);
 								alu_op = `REMU;
 							end
 					endcase
@@ -279,35 +281,35 @@ module decoder
 					if(func7 == 7'b0000001) begin
 						case(func3)
 							3'b000: begin
-									$display("mul $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("mul $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `MUL;
 								end
 							3'b001: begin
-									$display("mulh $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("mulh $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `MULH;
 								end
 							3'b010: begin
-									$display("mulhsu $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("mulhsu $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `MULHSU;
 								end
 							3'b011: begin
-									$display("mulhu $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("mulhu $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `MULHU;
 								end
 							3'b100: begin
-									$display("div $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("div $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `DIV;
 								end
 							3'b101: begin
-									$display("divu $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("divu $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `DIVU;
 								end
 							3'b110: begin
-									$display("rem $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("rem $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `REM;
 								end
 							3'b111: begin
-									$display("remu $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("remu $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `REMU;
 								end
 						endcase
@@ -317,75 +319,75 @@ module decoder
 							3'b000: begin
 								case(func7)
 									7'b0000000: begin
-											$display("add $%d, $%d, $%d", rd, rs1, rs2);
+											if(debug) $display("add $%d, $%d, $%d", rd, rs1, rs2);
 											alu_op = `ADD;
 										end
 									7'b0100000: begin
 											if(rs1 == 0) begin
 												//pseudo-instruction for "sub rd, 0, rs2"
-												$display("neg $%d, $%d", rd, rs2);
+												if(debug) $display("neg $%d, $%d", rd, rs2);
 												alu_op = `SUB;
 											end
 											else begin
-												$display("sub $%d, $%d, $%d", rd, rs1, rs2);
+												if(debug) $display("sub $%d, $%d, $%d", rd, rs1, rs2);
 												alu_op = `SUB;
 											end
 										end
 								endcase
 							end
 							3'b001: begin
-									$display("sll $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("sll $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `SLL;
 								end
 							3'b010: begin
 									if(rs1 == 0) begin
 										//pseudo-instruction for "slt rd, x0, rs2"
-										$display("sgtz $%d, $%d", rd, rs2);
+										if(debug) $display("sgtz $%d, $%d", rd, rs2);
 										alu_op = `LESS;
 									end
 									else if(rs2 == 0) begin
 										//pseudo-instruction for "slt rd, rs1, x0"
-										$display("sltz $%d, $%d", rd, rs1);
+										if(debug) $display("sltz $%d, $%d", rd, rs1);
 										alu_op = `LESS;
 									end
 									else begin
-										$display("slt $%d, $%d, $%d", rd, rs1, rs2);
+										if(debug) $display("slt $%d, $%d, $%d", rd, rs1, rs2);
 										alu_op = `LESS;
 									end
 								end
 							3'b011: begin
 									if(rs1 == 0) begin
 										//pseudo-instruction for "sltu rd, x0, rs2"
-										$display("snez $%d, $%d", rd, rs2);
+										if(debug) $display("snez $%d, $%d", rd, rs2);
 										alu_op = `LESSU;
 									end
 									else begin
-										$display("sltu $%d, $%d, $%d", rd, rs1, rs2);
+										if(debug) $display("sltu $%d, $%d, $%d", rd, rs1, rs2);
 										alu_op = `LESSU;
 									end
 								end
 							3'b100: begin
-									$display("xor $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("xor $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `XOR;
 								end
 							3'b101: begin
 								case(func7)
 									7'b0000000: begin
-											$display("srl $%d, $%d, $%d", rd, rs1, rs2);
+											if(debug) $display("srl $%d, $%d, $%d", rd, rs1, rs2);
 											alu_op = `SRL;
 										end
 									7'b0100000: begin
-											$display("sra $%d, $%d, $%d", rd, rs1, rs2);
+											if(debug) $display("sra $%d, $%d, $%d", rd, rs1, rs2);
 											alu_op = `SRA;
 										end
 								endcase
 							end
 							3'b110: begin
-									$display("or $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("or $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `OR;
 								end
 							3'b111: begin
-									$display("and $%d, $%d, $%d", rd, rs1, rs2);
+									if(debug) $display("and $%d, $%d, $%d", rd, rs1, rs2);
 									alu_op = `AND;
 								end
 						endcase
@@ -398,26 +400,26 @@ module decoder
 			7'b1100111: begin
 					if(i_imm == 0 && rd == 0 && rs1 == 1) begin
 						//pseudo-instruction for "jalr x0, x1, 0"
-						$display("ret");
+						if(debug) $display("ret");
 						alu_op = `ADD;
                                                 isBranch = `UNCOND;
 					end
 					else if(i_imm == 0 && rd == 0) begin
 						//pseudo-instruction for "jalr x0, rs1, 0"
-						$display("jr $%d", rs1);
+						if(debug) $display("jr $%d", rs1);
 						alu_op = `ADD;
 
                                                 isBranch = `UNCOND;
 					end
 					else if(i_imm == 0 && rd == 1) begin
 						//pseudo-instruction for "jalr x1, rs1, 0"
-						$display("jalr $%d", rs1);
+						if(debug) $display("jalr $%d", rs1);
 						alu_op = `ADD;
  
                                                 isBranch = `UNCOND;
 					end
 					else begin
-						$display("jalr $%d, $%d", rd, rs1);
+						if(debug) $display("jalr $%d, $%d", rd, rs1);
 						alu_op = `ADD;
 
                                                 isBranch = `UNCOND;
@@ -429,37 +431,37 @@ module decoder
 			7'b0000011: begin //load
 					case(func3)
 						3'b000: begin
-								$display("lb $%d, %d($%d)", rd, i_imm, rs1);
+								if(debug) $display("lb $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_BYTE;
 							end
 						3'b001: begin
-								$display("lh $%d, %d($%d)", rd, i_imm, rs1);
+								if(debug) $display("lh $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_HALF;
 							end
 						3'b010: begin
-								$display("lw $%d, %d($%d)", rd, i_imm, rs1);
+								if(debug) $display("lw $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_WORD;
 							end
 						3'b011: begin
-								$display("ld $%d, %d($%d)", rd, i_imm, rs1);
+								if(debug) $display("ld $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_DOUBLE;
 							end
 						3'b100: begin
-								$display("lbu $%d, %d($%d)", rd, i_imm, rs1);
+								if(debug) $display("lbu $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_US_BYTE;
 							end
 						3'b101: begin
-								$display("lhu $%d, %d($%d)", rd, i_imm, rs1);
+								if(debug) $display("lhu $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_US_HALF;
 							end
 						3'b110: begin
-								$display("lwu $%d, %d($%d)", rd, i_imm, rs1);
+								if(debug) $display("lwu $%d, %d($%d)", rd, i_imm, rs1);
 								alu_op = `ADD;
 								mem_size = `MEM_US_WORD;
 							end
@@ -474,75 +476,75 @@ module decoder
 						3'b000: begin
 								if(i_imm == 0 && rd == 0 && rs1 == 0) begin
 									//pseudo-instruction for "addi x0, x0, 0"
-									$display("nop");
+									if(debug) $display("nop");
 									alu_op = `ADD;
 								end
 								else if(i_imm == 0) begin
 									//pseudo-instruction for "addi rd, rs1, 0"
-									$display("mv $%d, $%d", rd, rs1);
+									if(debug) $display("mv $%d, $%d", rd, rs1);
 									alu_op = `ADD;
 								end
 								else if(rs1 == 0) begin
 									//pseudo-instruction for "addi rd, x0, imm"
-									$display("li $%d, %d", rd, i_imm);
+									if(debug) $display("li $%d, %d", rd, i_imm);
 									alu_op = `ADD;
 								end
 								else begin
-									$display("addi $%d, $%d, %d", rd, rs1, i_imm);
+									if(debug) $display("addi $%d, $%d, %d", rd, rs1, i_imm);
 									alu_op = `ADD;
 								end
 							end
 						3'b001: begin
-								$display("slli $%d, $%d %d", rd, rs1, shamt);
+								if(debug) $display("slli $%d, $%d %d", rd, rs1, shamt);
 								immediate = {26'b0, shamt};
 								alu_op = `SLL;
 							end
 						3'b010: begin
-								$display("slti $%d, $%d, %d", rd, rs1, i_imm);
+								if(debug) $display("slti $%d, $%d, %d", rd, rs1, i_imm);
 								alu_op = `LESS;
 							end
 						3'b011: begin
 								if(i_imm == 1) begin
 									//pseudo-instruction for "slitu rd, rs1, 1"
-									$display("seqz $%d, $%d", rd, rs1);
+									if(debug) $display("seqz $%d, $%d", rd, rs1);
 									alu_op = `SLTIU;
 								end
 								else begin
-									$display("sltiu $%d, $%d, %d", rd, rs1, i_imm);
+									if(debug) $display("sltiu $%d, $%d, %d", rd, rs1, i_imm);
 									alu_op = `SLTIU;
 								end
 							end
 						3'b100: begin
 								if(i_imm == -1) begin
 									//pseudo-instruction for "xori rd, rs1, -1"
-									$display("not $%d, $%d", rd, rs1);
+									if(debug) $display("not $%d, $%d", rd, rs1);
 									alu_op = `XOR;
 								end
 								else begin
-									$display("xori $%d, $%d, %d", rd, rs1, i_imm);
+									if(debug) $display("xori $%d, $%d, %d", rd, rs1, i_imm);
 									alu_op = `XOR;
 								end
 							end
 						3'b101: begin
-								case(func7)
-									7'b0000000: begin
-											$display("srli $%d, $%d %d", rd, rs1, shamt);
+								case(func7[6:1])
+									6'b000000: begin
+											if(debug) $display("srli $%d, $%d %d", rd, rs1, shamt);
 											immediate = {26'b0, shamt};
 											alu_op = `SRL;
 										end
-									7'b0100000: begin
-											$display("srai $%d, $%d %d", rd, rs1, shamt);
+									6'b010000: begin
+											if(debug) $display("srai $%d, $%d %d", rd, rs1, shamt);
 											immediate = {26'b0, shamt};
 											alu_op = `SRA;
 										end
 								endcase
 							end
 						3'b110: begin
-								$display("ori $%d, $%d, %d", rd, rs1, i_imm);
+								if(debug) $display("ori $%d, $%d, %d", rd, rs1, i_imm);
 								alu_op = `OR;
 							end
 						3'b111: begin
-								$display("andi $%d, $%d, %d", rd, rs1, i_imm);
+								if(debug) $display("andi $%d, $%d, %d", rd, rs1, i_imm);
 								alu_op = `AND;
 							end
 					endcase
@@ -555,31 +557,34 @@ module decoder
 						3'b000: begin
 								if(i_imm == 0) begin
 									//pseudo-instruction for "addiw rd, rs1, x0"
-									$display("sext.w $%d, $%d", rd, rs1);
+									if(debug) $display("sext.w $%d, $%d", rd, rs1);
                                                                         immediate = i_imm;
 									alu_op = `ADD;
 									//since it's a pseudo instructionm, should have same as addiw
 								end
 								else begin
-									$display("addiw $%d, $%d, %d", rd, rs1, i_imm);
+									if(debug) $display("addiw $%d, $%d, %d", rd, rs1, i_imm);
 									immediate = i_imm;
 									alu_op = `ADD;
 								end
 							end
 						3'b001: begin
-								$display("slliw $%d, $%d %d", rd, rs1, shamt);
+								if(debug) $display("slliw $%d, $%d %d", rd, rs1, shamt);
+                                                                shamt = {1'b0, shamt[4:0]};
 								immediate = {26'b0, shamt};
 								alu_op = `SLL;
 							end
 						3'b101: begin
 								case(func7)
 									7'b0000000: begin
-											$display("srliw $%d, $%d %d", rd, rs1, shamt);
+											if(debug) $display("srliw $%d, $%d %d", rd, rs1, shamt);
+                                                                                        shamt = {1'b0, shamt[4:0]};
 											immediate = {26'b0, shamt};
 											alu_op = `SRL;
 										end
 									7'b0100000: begin
-											$display("sraiw $%d, $%d %d", rd, rs1, shamt);
+											if(debug) $display("sraiw $%d, $%d %d", rd, rs1, shamt);
+                                                                                        shamt = {1'b0, shamt[4:0]};
 											immediate = {26'b0, shamt};
 											alu_op = `SRA;
 										end

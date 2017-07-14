@@ -32,7 +32,7 @@ extern "C" {
         }
     }
 
-#define ECALL_DEBUG 1
+#define ECALL_DEBUG 0
 #define ECALL_MEMGUARD (10*1024)
 
     void do_ecall(long long a7, long long a0, long long a1, long long a2, long long a3, long long a4, long long a5, long long a6, long long* a0ret) {
@@ -382,7 +382,7 @@ extern "C" {
                 pending_writes.erase(pw);
             }
 
-        cerr << "Before Value: " << *((uint64_t*)&System::sys->ram[0x3fbffd18]) << std::dec << std::endl;
+//        cerr << "Before Value: " << *((uint64_t*)&System::sys->ram[0x3fbffd18]) << std::dec << std::endl;
         if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7;
 
         iovec* iov = (iovec*)a1;
@@ -402,9 +402,9 @@ extern "C" {
                 iov[i].iov_base = (char*)iov[i].iov_base - (long long)System::sys->ram_virt;
 
         if (ECALL_DEBUG) cerr << " => " << std::dec << *a0ret << endl;
-	cerr << "malloc 95c28: " << *((uint64_t*)&System::sys->ram[0x95c28]) << std::hex << endl;
+//	cerr << "malloc 95c28: " << *((uint64_t*)&System::sys->ram[0x95c28]) << std::hex << endl;
 
-	cerr << "malloc 28: " << *((uint64_t*)&System::sys->ram[0x28]) << std::hex << endl;
+//	cerr << "malloc 28: " << *((uint64_t*)&System::sys->ram[0x28]) << std::hex << endl;
 	//cerr << "After Value: " << *((uint64_t*)&System::sys->ram[0x3fbffd18]) << std::dec << std::endl;
         //cerr << "After Value: " << *((uint64_t*)&System::sys->ram[0x3fbffd9a]) << std::dec << std::endl;
 
