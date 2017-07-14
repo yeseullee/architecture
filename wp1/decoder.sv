@@ -33,7 +33,7 @@ module decoder
 	logic signed [31:0] jal_imm;
 	logic signed [31:0] u_imm, sb_imm;
 	logic signed [31:0] i_imm, s_imm;
-        logic debug = 0;
+        logic debug = 1;
 
 /*	//code to ensure each instruction is decoded only once
 	always_comb begin

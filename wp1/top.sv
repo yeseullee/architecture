@@ -247,8 +247,6 @@ module top
     logic [63:0] MEM_str_value;
     logic [63:0] _MEM_str_value;
     logic [63:0] MEM_index_from_req;
-    logic [5:0] zcounter;
-    logic [5:0] _zcounter;
     logic MEM_finished_instr;
     logic _MEM_finished_instr;
     //Valid instruction
@@ -291,7 +289,7 @@ module top
 
 
     //cache variables
-    logic cache = 0;  //set to 0 to remove the cache, and comment out cache initialization block
+    logic cache = 1;  //set to 0 to remove the cache, and comment out cache initialization block
     logic IF_cache_bus_reqcyc;
     logic IF_cache_bus_respack;
     logic [BUS_DATA_WIDTH-1:0] IF_cache_bus_req;
@@ -311,7 +309,7 @@ module top
     logic [BUS_DATA_WIDTH-1:0] MEM_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] MEM_cache_bus_resptag;
     logic [8:0] MEM_cache_ptr;
-/*
+
     cache IF_cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
@@ -344,7 +342,7 @@ module top
         .m_bus_reqtag(MEM_arbiter_bus_reqtag), .m_bus_respack(MEM_arbiter_bus_respack),
         .out_ptr(MEM_cache_ptr)
     );
-*/
+
 
     //arbiter variables
     logic IF_arbiter_bus_reqcyc;
@@ -453,7 +451,19 @@ module top
             WAIT:begin
                     // Getting all 16 instrs (before, we got 2 * 8 times)
                     if(cache == 1) begin //TODO: remove fetch_count, instead us ptr.
-                        if(fetch_count == 16) begin
+                        if(IF_cache_bus_respcyc == 1) begin
+                            _instrlist[2*IF_cache_ptr] = IF_cache_bus_resp[31:0];
+                            _instrlist[2*IF_cache_ptr + 1] = IF_cache_bus_resp[63:32];
+                            IF_cache_bus_respack = 1;
+                            next_state = WAIT;
+                            if(IF_cache_ptr == 7) begin
+                                next_state = GETINSTR;
+                                _getinstr_ready = 1;
+                            end
+                        end else begin
+                            next_state = WAIT;
+                        end
+                      /*  if(fetch_count == 16) begin
                             IF_cache_bus_respack = 1;
                             _fetch_count = fetch_count + 1;
                         end
@@ -482,7 +492,7 @@ module top
                             next_state = WAIT;
                         end else begin
                             next_state = WAIT;
-                        end
+                        end*/
                     end
                     else begin
                         if(IF_arbiter_bus_respcyc == 1) begin
@@ -504,7 +514,11 @@ module top
                     if(IF_stalled) begin
                         //Acknowledge the resp again.
                         if(getinstr_ready) begin
-                            IF_arbiter_bus_respack = 1;
+                            if(cache) begin
+                                IF_cache_bus_respack = 1;
+                            end else begin
+                                IF_arbiter_bus_respack = 1;
+                            end
                         end
 
                         if(jumpbit) begin
@@ -1216,7 +1230,6 @@ module top
             MEM_pc <= _MEM_pc;
             MEM_isBranch <= _MEM_isBranch;
             MEM_ecall <= _MEM_ecall;
-            zcounter <= _zcounter;
             MEM_finished_instr <= _MEM_finished_instr;
 
             MEM_stalled <= 0;
@@ -1233,7 +1246,6 @@ module top
                 MEM_read_value <= _MEM_read_value;
                 MEM_ptr <= MEM_next_ptr;
                 MEM_str_value <= _MEM_str_value;
-                zcounter <= _zcounter;
                 MEM_finished_instr <= _MEM_finished_instr;
             end
 
