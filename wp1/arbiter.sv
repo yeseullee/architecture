@@ -113,7 +113,7 @@ module arbiter
 					end
 
                                         //if for some odd reason there's bus_resp...
-                                        if(bus_respcyc) begin
+                                        if(bus_respcyc) begin  // TODO: May need to put it in cache also.
                                             bus_respack = 1;
                                         end
 				end

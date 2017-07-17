@@ -32,7 +32,7 @@ extern "C" {
         }
     }
 
-#define ECALL_DEBUG 0
+#define ECALL_DEBUG 1
 #define ECALL_MEMGUARD (10*1024)
 
     void do_ecall(long long a7, long long a0, long long a1, long long a2, long long a3, long long a4, long long a5, long long a6, long long* a0ret) {
@@ -59,7 +59,6 @@ extern "C" {
             return;
 
         case __NR_munmap:
-        case __NR_mprotect:
             *a0ret = 0; // don't bother unmapping
             return;
 
@@ -113,7 +112,6 @@ extern "C" {
     } while(0)
 
         case __NR_open:
-//        case __NR_mprotect: // added 
         case __NR_poll:
         case __NR_access:
         case __NR_pipe:

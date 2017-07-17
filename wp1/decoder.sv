@@ -33,7 +33,7 @@ module decoder
 	logic signed [31:0] jal_imm;
 	logic signed [31:0] u_imm, sb_imm;
 	logic signed [31:0] i_imm, s_imm;
-        logic debug = 1;
+        logic debug = 0;
 
 /*	//code to ensure each instruction is decoded only once
 	always_comb begin
@@ -612,32 +612,17 @@ module decoder
                                             isECALL = 1;
                                             isBranch = 0;
                                         end else begin
-			                    $display("This instruction is not recognized: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
+			                    $display("This instruction is not recognized: %b|%b|%b|%b|%b|%b  at %h", func7, rs2, rs1, func3, rd, opcode, cur_pc);
                                         end
                                     end
 
 			//default cases
 			7'b0000000: ;//$display("This instruction has been decoded before: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
-			default: $display("This instruction is not recognized: %b|%b|%b|%b|%b|%b", func7, rs2, rs1, func3, rd, opcode);
+			default: $display("This instruction is not recognized: %b|%b|%b|%b|%b|%b at %h", func7, rs2, rs1, func3, rd, opcode, cur_pc);
 		endcase
 
 		//prev_instr_wire = instruction;
 
-                //For ECALL instruction.
-                if(instruction == {57'b0, 7'b1110011}) begin
-	            rd=0;
-	            rs1=0;
-	            rs2=0;
-	            immediate=0;
-	            alu_op=0;
-	            shamt=0;
-	            reg_write=0;
-	            instr_type=0;
-	            mem_access=0;
-	            mem_size=0;
-                    isECALL = 1;
-                    isBranch = 0;
-                end
 	end
 
 	always_ff @ (posedge clk) begin

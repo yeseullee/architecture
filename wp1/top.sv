@@ -289,7 +289,7 @@ module top
 
 
     //cache variables
-    logic cache = 1;  //set to 0 to remove the cache, and comment out cache initialization block
+    logic cache = 0;  //set to 0 to remove the cache, and comment out cache initialization block
     logic IF_cache_bus_reqcyc;
     logic IF_cache_bus_respack;
     logic [BUS_DATA_WIDTH-1:0] IF_cache_bus_req;
@@ -309,7 +309,7 @@ module top
     logic [BUS_DATA_WIDTH-1:0] MEM_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] MEM_cache_bus_resptag;
     logic [8:0] MEM_cache_ptr;
-
+/*
     cache IF_cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
@@ -343,7 +343,7 @@ module top
         .out_ptr(MEM_cache_ptr)
     );
 
-
+*/
     //arbiter variables
     logic IF_arbiter_bus_reqcyc;
     logic IF_arbiter_bus_respack;
@@ -799,7 +799,7 @@ module top
                     1: begin  //receive response
                             if(cache == 1) begin
                                 if(MEM_cache_bus_respcyc == 1) begin
-                                    _MEM_read_value[64*MEM_cache_ptr +: 63] = MEM_cache_bus_resp;
+                                    _MEM_read_value[64*MEM_cache_ptr +: 64] = MEM_cache_bus_resp;
                                     MEM_cache_bus_respack = 1;
                                     if(MEM_cache_ptr == 7) begin
                                         _MEM_status = 2;
@@ -808,7 +808,7 @@ module top
                             end
                             else begin
                                 if(MEM_arbiter_bus_respcyc == 1) begin
-                                    _MEM_read_value[64*MEM_arbiter_ptr +: 63] = MEM_arbiter_bus_resp;
+                                    _MEM_read_value[64*MEM_arbiter_ptr +: 64] = MEM_arbiter_bus_resp;
                                     MEM_arbiter_bus_respack = 1;
                                     if(MEM_arbiter_ptr == 7) begin
                                         _MEM_status = 2;
@@ -889,7 +889,7 @@ module top
                             if(cache == 1) begin
                                 MEM_cache_bus_reqcyc = 1;
                                 MEM_cache_bus_reqtag = {1'b0,`SYSBUS_MEMORY,8'b0};
-                                MEM_cache_bus_req = MEM_read_value[64*MEM_ptr +: 63];
+                                MEM_cache_bus_req = MEM_read_value[64*MEM_ptr +: 64];
                                 if(MEM_cache_bus_reqack == 1) begin
                                     MEM_next_ptr = MEM_ptr + 1;
                                     if(MEM_ptr == 7) begin
@@ -901,7 +901,7 @@ module top
                             else begin
                                 MEM_arbiter_bus_reqcyc = 1;
                                 MEM_arbiter_bus_reqtag = {1'b0,`SYSBUS_MEMORY,8'b0};
-                                MEM_arbiter_bus_req = MEM_read_value[64*MEM_ptr +: 63];
+                                MEM_arbiter_bus_req = MEM_read_value[64*MEM_ptr +: 64];
                                 if(MEM_arbiter_bus_reqack == 1) begin
                                     MEM_next_ptr = MEM_ptr + 1;
                                     if(MEM_ptr == 7) begin
@@ -1005,6 +1005,9 @@ module top
             if(MEM_instr == last_instr[31:0])begin
                 _last_instr = {1'b1,MEM_instr};
             end
+
+	    //$display("%h",WB_pc);
+            //if(jumpbit) $display("jumped");
 
         end
 
