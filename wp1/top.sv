@@ -289,7 +289,7 @@ module top
 
 
     //cache variables
-    logic cache = 0;  //set to 0 to remove the cache, and comment out cache initialization block
+    logic cache = 1;  //set to 0 to remove the cache, and comment out cache initialization block
     logic IF_cache_bus_reqcyc;
     logic IF_cache_bus_respack;
     logic [BUS_DATA_WIDTH-1:0] IF_cache_bus_req;
@@ -309,7 +309,7 @@ module top
     logic [BUS_DATA_WIDTH-1:0] MEM_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] MEM_cache_bus_resptag;
     logic [8:0] MEM_cache_ptr;
-/*
+
     cache IF_cache_mod (
         //INPUTS
         .clk(clk),// .reset(reset),
@@ -343,7 +343,7 @@ module top
         .out_ptr(MEM_cache_ptr)
     );
 
-*/
+
     //arbiter variables
     logic IF_arbiter_bus_reqcyc;
     logic IF_arbiter_bus_respack;
@@ -463,36 +463,6 @@ module top
                         end else begin
                             next_state = WAIT;
                         end
-                      /*  if(fetch_count == 16) begin
-                            IF_cache_bus_respack = 1;
-                            _fetch_count = fetch_count + 1;
-                        end
-                        else if(fetch_count == 17) begin
-                            IF_cache_bus_respack = 1;
-                            // For the first instr after fetch.
-                            next_state = GETINSTR;
-                            _getinstr_ready = 1;
-                            _fetch_count = 0;
-                        end
-                        else if(IF_cache_bus_respcyc == 1) begin
-                            _instrlist[fetch_count] = IF_cache_bus_resp[31:0];
-                            _instrlist[fetch_count + 1] = IF_cache_bus_resp[63:32];
-
-                            // For next time,
-                            if(IF_cache_bus_resp != {instrlist[fetch_count-1],instrlist[fetch_count-2]}) begin// || IF_cache_bus_resp == 0) begin
-                                _fetch_count = fetch_count + 2;
-                            end
-                            else if(IF_cache_bus_resp == 0) begin
-                                _fetch_count = fetch_count + 1;
-				if(fetch_count == 14) begin
-					_fetch_count = fetch_count + 2;
-				end
-                            end
-                            IF_cache_bus_respack = 1;
-                            next_state = WAIT;
-                        end else begin
-                            next_state = WAIT;
-                        end*/
                     end
                     else begin
                         if(IF_arbiter_bus_respcyc == 1) begin
@@ -819,20 +789,23 @@ module top
                     2: begin  //manipulate read value accordingly and send request to write if needed
                             if(cache==1) begin
                                 MEM_cache_bus_respack = 1;
-                            end begin
+                            end else begin
                                 MEM_arbiter_bus_respack = 1;
                             end
 
                             if(_MEM_access == `MEM_READ) begin //load
                                 //Tload value from MEM_read_value to _MEM_value
                                 case(_MEM_size) 
-                                        `MEM_BYTE: _MEM_str_value = $signed(MEM_read_value[8*MEM_index_from_req +: 8]);
-                                        `MEM_HALF: _MEM_str_value = $signed(MEM_read_value[8*MEM_index_from_req +: 16]);
-                                        `MEM_WORD: _MEM_str_value = $signed(MEM_read_value[8*MEM_index_from_req +: 32]);
+                                        `MEM_BYTE: _MEM_str_value = {{56{MEM_read_value[8*MEM_index_from_req + 8 - 1]}}, 
+									MEM_read_value[8*MEM_index_from_req +: 8]};
+                                        `MEM_HALF: _MEM_str_value = {{48{MEM_read_value[8*MEM_index_from_req + 16 - 1]}}, 
+									MEM_read_value[8*MEM_index_from_req +: 16]};
+                                        `MEM_WORD: _MEM_str_value = {{32{MEM_read_value[8*MEM_index_from_req + 32 - 1]}}, 
+									MEM_read_value[8*MEM_index_from_req +: 32]};
                                         `MEM_DOUBLE: _MEM_str_value = {MEM_read_value[8*MEM_index_from_req +: 64]};
-                                        `MEM_US_BYTE: _MEM_str_value = $unsigned(MEM_read_value[8*MEM_index_from_req +: 8]);
-                                        `MEM_US_HALF: _MEM_str_value = $unsigned(MEM_read_value[8*MEM_index_from_req +: 16]);
-                                        `MEM_US_WORD: _MEM_str_value = $unsigned(MEM_read_value[8*MEM_index_from_req +: 32]);
+                                        `MEM_US_BYTE: _MEM_str_value = {56'b0, MEM_read_value[8*MEM_index_from_req +: 8]};
+                                        `MEM_US_HALF: _MEM_str_value = {48'b0, MEM_read_value[8*MEM_index_from_req +: 16]};
+                                        `MEM_US_WORD: _MEM_str_value = {32'b0, MEM_read_value[8*MEM_index_from_req +: 32]};
                                 endcase
                                 
                                 MEM_next_ptr = 0;
@@ -1007,7 +980,7 @@ module top
             end
 
 	    //$display("%h",WB_pc);
-            //if(jumpbit) $display("jumped");
+            if(jumpbit) $display("jump to %h", jump_to_addr);
 
         end
 

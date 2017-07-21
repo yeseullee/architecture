@@ -26,7 +26,7 @@ module cache
 		DATA_LENGTH = 512,
 
 		//direct cache variables
-		DIR_CACHE_TAG = BUS_DATA_WIDTH - OFFSET - DIR_CACHE_INDEX,
+		DIR_CACHE_TAG = BUS_DATA_WIDTH - OFFSET - DIR_CACHE_INDEX, // 64-6-5 = 53
 		DIR_CACHE_INDEX = 5,	//index = log2(32) (# sets in the cache)
 
 		//set cache variables
@@ -78,10 +78,8 @@ module cache
 	logic _invalid;
 
 	//cache management-related variables
-	logic cache_type = 1; //set to 0 for direct, 1 for set
-	logic [OFFSET-1:0] offset;
-	logic [NUM_CACHE_LINES-1:0] dirty_bits;
-	logic [NUM_CACHE_LINES-1:0] _dirty_bits;
+	logic cache_type = 0; //set to 0 for direct, 1 for set
+	logic [OFFSET-1:0] offset; // Don't need offset because all requests are 64 byte aligned.
 	logic [NUM_CACHE_LINES-1:0] valid_bits;
 	logic [NUM_CACHE_LINES-1:0] _valid_bits;
 	logic [DATA_LENGTH-1:0] cache_data[NUM_CACHE_LINES-1:0];
@@ -124,8 +122,9 @@ module cache
 					_req_addr = p_bus_req;
 					_req_tag = p_bus_reqtag;
 					next_ptr = 0;
+                                        
 					if(m_bus_respcyc == 1 && m_bus_resptag == 3'h800) begin
-						//if an address needs to be invalidated
+						//if an address needs to be invalidated TODO(?)
 						_invalid = 1;
 						_req_addr = m_bus_resp;
 						next_state = LOOKUP;
@@ -157,10 +156,12 @@ module cache
 			ACKPROC: begin
 					p_bus_reqack = 1;
 					if(req_tag[12] == `SYSBUS_WRITE) begin
+						// Writing
 						_content = 0;
 						next_state = READVAL;
 					end
 					else begin
+						// Reading
 						next_state = LOOKUP;
 					end
 				end
@@ -189,25 +190,28 @@ module cache
 			_dir_cache_tags[i] = dir_cache_tags[i];
 		end
 		_valid_bits = valid_bits;
-		_dirty_bits = dirty_bits;
 		_recent_bits = recent_bits;
 	   
 		//extract tag, index, offset from address
-		dir_tag = req_addr[63:63-DIR_CACHE_TAG+1];
-		dir_index = req_addr[63-DIR_CACHE_TAG:OFFSET];
+		dir_tag = req_addr[63:63-DIR_CACHE_TAG+1];  // 63:11
+		dir_index = req_addr[63-DIR_CACHE_TAG:OFFSET]; //10:6
 		set_tag = req_addr[63:63-DIR_CACHE_TAG+1];
 		set_index = req_addr[63-DIR_CACHE_TAG:OFFSET];
-		offset = req_addr[OFFSET-1:0];
+		offset = req_addr[OFFSET-1:0]; // 5:0 // Unnecessary Offset.
 	   
 		case(state)
 			LOOKUP: begin
 					//cache miss with writing should also go to UPDATE, since all 512 bits are given
 					//goes to RESPOND or DRAMRD otherwise
 					//compare to existing cache and set next_state and _content respectively
+
 					if(cache_type == 0) begin //direct cache
+
+						// Valid bit == 1
 						if(valid_bits[dir_index] == 1) begin
+							// Tag Equal. CACHE HIT.
 							if(dir_cache_tags[dir_index] == dir_tag) begin
-								//cache hit on invalidate request
+								//cache hit on invalidate request // TODO: Ignore for now.
 								if(invalid == 1) begin
 									_valid_bits[dir_index] = 0;
 									if(req_addr % 64 != 0) begin
@@ -217,9 +221,8 @@ module cache
 									_invalid = 0;
 								end
 
-								//cache hit on write (invalidate data)
+								//cache hit on write
 								else if(req_tag[12] == `SYSBUS_WRITE) begin
-									_valid_bits[dir_index] = 0;
 									next_state = UPDATE;
 								end
 
@@ -239,6 +242,8 @@ module cache
 								_content = 0;
 							end
 						end
+
+						// CACHE MISS. Validbit == 0.
 						else if(req_tag[12] == `SYSBUS_WRITE) begin
 							//cache miss on write
 							next_state = UPDATE;
@@ -332,24 +337,7 @@ module cache
 					end
 					else if(m_bus_respcyc == 1) begin
 						m_bus_respack = 1;
-						//_content[(DATA_LENGTH-1)-(64*ptr):(DATA_LENGTH-1)-(64*(ptr+1)] = m_bus_resp;
 						_content[64*mem_ptr +: 64] = m_bus_resp;
-					//	next_ptr = ptr;
-					//	if(m_bus_resp != _content[64*(ptr-1) +: 64]) begin// || m_bus_resp == 0) begin
-					//		next_ptr = ptr + 1;
-					//		if(zcounter > 0) begin
-					//			_zcounter = 0;
-					//		end
-					//	end
-					//	else if(m_bus_resp == 0) begin
-					//		if(zcounter >= 2) begin
-					//			_zcounter = 0;
-					//			next_ptr = ptr + 1;
-					//		end
-					//		else begin
-					//			_zcounter = zcounter + 1;
-					//		end
-					//	end
 						next_state = RECEIVE;
 						if(mem_ptr == 7) begin
 							next_state = UPDATE;
@@ -368,27 +356,22 @@ module cache
 					//insert the new block into the cache
 					if(cache_type == 0) begin //direct cache
 						m_bus_respack = 1;
+                                                
 						if(req_tag[12] == 0) begin
-							_dirty_bits[dir_index] = 1;
-							if(valid_bits[dir_index] == 1 && dirty_bits[dir_index] == 1) begin
-								next_state = DRAMWREQ;
-								_content = cache_data[dir_index];
-							end
-							else begin
-								next_state = ACCEPT;
-							end
+							// Need to save to mem now.
+							// Content has the updated data.
+							next_state = DRAMWREQ;
 						end
 						else begin
-							_dirty_bits[dir_index] = 0;
 							next_state = RESPOND;
 						end
 
-						_valid_bits[dir_index] = 1;
-						_dir_cache_tags[dir_index] = dir_tag;
-						_cache_data[dir_index] = content;
+						_valid_bits[dir_index] = 1; // saying its valid to retrieve.
+						_dir_cache_tags[dir_index] = dir_tag; // marking new tag.
+						_cache_data[dir_index] = content; // write the content retrieved back to cache block.
 					end
 					else begin //set cache
-						m_bus_respack = 1;
+						m_bus_respack = 1; // I think unnecessary.
 						update_index = -1;
 
 						//find location
@@ -407,8 +390,9 @@ module cache
 
 						//replace the cache block as needed
 						if(req_tag[12] == 0) begin //cache write
-							_dirty_bits[update_index] = 1;
-							if(valid_bits[update_index] == 1 && dirty_bits[update_index] == 1) begin
+							//_dirty_bits[update_index] = 1;TODO: Get rid of dirty completely.
+							//if(valid_bits[update_index] == 1 && dirty_bits[update_index] == 1) begin
+							if(valid_bits[update_index] == 1) begin
 								next_state = DRAMWREQ;
 								_content = cache_data[update_index];
 							end
@@ -417,7 +401,7 @@ module cache
 							end
 						end
 						else begin
-							_dirty_bits[update_index] = 0;
+							//_dirty_bits[update_index] = 0;
 							next_state = RESPOND;
 						end
 
@@ -511,7 +495,7 @@ module cache
 			content <= 0;
 			ptr <= 0;
 			zcounter <= 0;
-			dirty_bits <= 0;
+			//dirty_bits <= 0;
 			valid_bits <= 0;
 			recent_bits <= 0;
 			invalid <= _invalid;
@@ -529,7 +513,7 @@ module cache
 		content <= _content;
 		ptr <= next_ptr;
 		zcounter <= _zcounter;
-		dirty_bits <= _dirty_bits;
+		//dirty_bits <= _dirty_bits;
 		valid_bits <= _valid_bits;
 		recent_bits <= _recent_bits;
 		invalid <= _invalid;
