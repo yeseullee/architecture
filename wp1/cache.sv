@@ -19,6 +19,7 @@ module cache
 		SETRESPZ = 11,
 		DRAMWREQ = 12,
 		DRAMWRT = 13,
+                INVALIDATE = 14,
 
 		//Cache constants
 		NUM_CACHE_LINES = 32,
@@ -50,6 +51,8 @@ module cache
 		output  [BUS_DATA_WIDTH-1:0] p_bus_resp,	//content of requested address
 		output  [BUS_TAG_WIDTH-1:0] p_bus_resptag,	//tag associated with response (useful in superscalar)
 		output [8:0] out_ptr,
+                output invalidated,
+		input [BUS_DATA_WIDTH-1:0] inv_req,
 
 
 		// interface to connect to the bus on the dram(memory) side
@@ -106,12 +109,20 @@ module cache
 	logic [8:0] zcounter;
 	logic [8:0] _zcounter;
 
+        //variables to use when invalidating
+      //  logic [63:0] inv_req;
+	logic [DIR_CACHE_TAG-1:0] inv_dir_tag;
+	logic [DIR_CACHE_INDEX-1:0] inv_dir_index;
+
 
 	//NOTE: multiple always comb blocks used to keep verilator happy
 	//	processor resp, ack, and cyc variables cannot be set or used within the same block
    
 	//accept requests and values from the processor: INITIAL, ACCEPT, READVAL
 	always_comb begin
+
+                invalidated = 0;
+
 		case(state)
 			INITIAL: begin
 					//Initialize the system
@@ -123,11 +134,8 @@ module cache
 					_req_tag = p_bus_reqtag;
 					next_ptr = 0;
                                         
-					if(m_bus_respcyc == 1 && m_bus_resptag == 3'h800) begin
-						//if an address needs to be invalidated TODO(?)
-						_invalid = 1;
-						_req_addr = m_bus_resp;
-						next_state = LOOKUP;
+					if(inv_req != 0) begin
+						next_state = INVALIDATE;
 					end
 					else if(p_bus_reqcyc == 1) begin
 						next_state = ACKPROC;
@@ -135,6 +143,27 @@ module cache
 					else begin
 						next_state = ACCEPT;
 					end
+				end
+                        INVALIDATE: begin
+					
+					//extract tag, index, offset from address
+					inv_dir_tag = inv_req[63:63-DIR_CACHE_TAG+1];  // 63:11
+					inv_dir_index = inv_req[63-DIR_CACHE_TAG:OFFSET]; //10:6
+					//TODO: do for set cache.
+					//set_tag = req_addr[63:63-DIR_CACHE_TAG+1];
+					//set_index = req_addr[63-DIR_CACHE_TAG:OFFSET];
+
+					if(valid_bits[inv_dir_index] == 1) begin
+						if(dir_cache_tags[inv_dir_index] == inv_dir_tag) begin
+							_valid_bits[inv_dir_index] = 0;
+							_dir_cache_tags[inv_dir_index] = 0;
+                                                        _cache_data[inv_dir_index] = 0;
+						end
+					end
+
+					invalidated = 1;
+					next_state= ACCEPT;
+
 				end
 			READVAL: begin
 					//read value to be written from processor
@@ -211,18 +240,8 @@ module cache
 						if(valid_bits[dir_index] == 1) begin
 							// Tag Equal. CACHE HIT.
 							if(dir_cache_tags[dir_index] == dir_tag) begin
-								//cache hit on invalidate request // TODO: Ignore for now.
-								if(invalid == 1) begin
-									_valid_bits[dir_index] = 0;
-									if(req_addr % 64 != 0) begin
-										_valid_bits[dir_index + 1] = 0;
-									end
-									next_state = ACCEPT;
-									_invalid = 0;
-								end
-
 								//cache hit on write
-								else if(req_tag[12] == `SYSBUS_WRITE) begin
+								if(req_tag[12] == `SYSBUS_WRITE) begin
 									next_state = UPDATE;
 								end
 
@@ -267,7 +286,7 @@ module cache
 						for(int i = 0; i < NUM_CACHE_LINES/NUM_CACHE_SETS; i++) begin
 							if(valid_bits[(2*set_index)+i] == 1) begin
 								if(set_cache_tags[(2*set_index)+i] == set_tag) begin
-									//cache hit on invalidate request
+									//cache hit on invalidate request // TODO: do it in invalidate stage.
 									if(invalid == 1) begin
 										_valid_bits[(2*set_index)+i] = 0;
 										if(req_addr % 64 != 0) begin

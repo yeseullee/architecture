@@ -67,6 +67,8 @@ module top
     logic [63:0] cur_a6;
     logic [63:0] cur_a7;
     logic ecall_now;
+    logic ecall_later;
+    logic _ecall_later;
     logic pending_write;
 
     //For jumps
@@ -79,6 +81,9 @@ module top
 
     reg firstFETCH;
     reg _firstFETCH;
+
+    //For Invalidation
+    reg invalidate;
 
     //The index is the register.
     // [32] = Is written to; [31:0] = The instruction writing. 
@@ -299,6 +304,8 @@ module top
     logic [BUS_DATA_WIDTH-1:0] IF_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] IF_cache_bus_resptag;
     logic [8:0] IF_cache_ptr;
+    logic IF_cache_invalidated; // There's no use. just a place-holder.
+    logic [BUS_DATA_WIDTH-1:0] IF_cache_inv_req;
 
     logic MEM_cache_bus_reqcyc;
     logic MEM_cache_bus_respack;
@@ -309,6 +316,8 @@ module top
     logic [BUS_DATA_WIDTH-1:0] MEM_cache_bus_resp;
     logic [BUS_TAG_WIDTH-1:0] MEM_cache_bus_resptag;
     logic [8:0] MEM_cache_ptr;
+    logic MEM_cache_invalidated; // 1 == cache is invalidated upon request.
+    logic [BUS_DATA_WIDTH-1:0] MEM_cache_inv_req;
 
     cache IF_cache_mod (
         //INPUTS
@@ -317,14 +326,14 @@ module top
         .p_bus_reqtag(IF_cache_bus_reqtag), .p_bus_respack(IF_cache_bus_respack),
         .m_bus_reqack(IF_arbiter_bus_reqack), .m_bus_respcyc(IF_arbiter_bus_respcyc), 
         .m_bus_resp(IF_arbiter_bus_resp), .m_bus_resptag(IF_arbiter_bus_resptag),
-        .mem_ptr(IF_arbiter_ptr),
+        .mem_ptr(IF_arbiter_ptr), .invalidated(IF_cache_invalidated),
 
         //OUTPUTS
         .p_bus_reqack(IF_cache_bus_reqack), .p_bus_respcyc(IF_cache_bus_respcyc), 
         .p_bus_resp(IF_cache_bus_resp), .p_bus_resptag(IF_cache_bus_resptag),
         .m_bus_reqcyc(IF_arbiter_bus_reqcyc), .m_bus_req(IF_arbiter_bus_req),
         .m_bus_reqtag(IF_arbiter_bus_reqtag), .m_bus_respack(IF_arbiter_bus_respack),
-        .out_ptr(IF_cache_ptr)
+        .out_ptr(IF_cache_ptr), .inv_req(IF_cache_inv_req)
     );
     cache MEM_cache_mod (
         //INPUTS
@@ -333,14 +342,14 @@ module top
         .p_bus_reqtag(MEM_cache_bus_reqtag), .p_bus_respack(MEM_cache_bus_respack),
         .m_bus_reqack(MEM_arbiter_bus_reqack), .m_bus_respcyc(MEM_arbiter_bus_respcyc), 
         .m_bus_resp(MEM_arbiter_bus_resp), .m_bus_resptag(MEM_arbiter_bus_resptag),
-        .mem_ptr(MEM_arbiter_ptr),
+        .mem_ptr(MEM_arbiter_ptr), .invalidated(MEM_cache_invalidated),  
 
         //OUTPUTS
         .p_bus_reqack(MEM_cache_bus_reqack), .p_bus_respcyc(MEM_cache_bus_respcyc), 
         .p_bus_resp(MEM_cache_bus_resp), .p_bus_resptag(MEM_cache_bus_resptag),
         .m_bus_reqcyc(MEM_arbiter_bus_reqcyc), .m_bus_req(MEM_arbiter_bus_req),
         .m_bus_reqtag(MEM_arbiter_bus_reqtag), .m_bus_respack(MEM_arbiter_bus_respack),
-        .out_ptr(MEM_cache_ptr)
+        .out_ptr(MEM_cache_ptr), .inv_req(MEM_cache_inv_req)
     );
 
 
@@ -363,6 +372,7 @@ module top
     logic [BUS_TAG_WIDTH-1:0] MEM_arbiter_bus_resptag;
     logic [8:0] IF_arbiter_ptr;
     logic [8:0] MEM_arbiter_ptr;
+    logic arbiter_ready;
 
     arbiter arbiter_mod (
         //INPUTS
@@ -379,7 +389,7 @@ module top
         .resp1(MEM_arbiter_bus_resp), .respcyc1(MEM_arbiter_bus_respcyc), 
         .resptag1(MEM_arbiter_bus_resptag), .reqack1(MEM_arbiter_bus_reqack),
         .bus_req(bus_req), .bus_reqcyc(bus_reqcyc), .bus_reqtag(bus_reqtag), .bus_respack(bus_respack),
-        .ptr0(IF_arbiter_ptr), .ptr1(MEM_arbiter_ptr)
+        .ptr0(IF_arbiter_ptr), .ptr1(MEM_arbiter_ptr), .ready(arbiter_ready)
     );
 
     
@@ -450,7 +460,7 @@ module top
                 end
             WAIT:begin
                     // Getting all 16 instrs (before, we got 2 * 8 times)
-                    if(cache == 1) begin //TODO: remove fetch_count, instead us ptr.
+                    if(cache == 1) begin 
                         if(IF_cache_bus_respcyc == 1) begin
                             _instrlist[2*IF_cache_ptr] = IF_cache_bus_resp[31:0];
                             _instrlist[2*IF_cache_ptr + 1] = IF_cache_bus_resp[63:32];
@@ -603,6 +613,11 @@ module top
             MEM_arbiter_bus_reqtag = 0;
         end
 
+        invalidate = 0;
+        if(bus_respcyc == 1 && bus_resptag == 24'h800) begin
+            invalidate = 1;
+        end
+
         // Decode Stage.
 
         // If not in stall, get from IF_valid_instr. Else, don't get.
@@ -745,7 +760,7 @@ module top
                             if(cache == 1) begin 
                                 MEM_cache_bus_reqcyc = 1;
                                 MEM_cache_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                                MEM_cache_bus_req = _MEM_alu_result - (_MEM_alu_result % 64); //TODO: find and floor requested address
+                                MEM_cache_bus_req = _MEM_alu_result - (_MEM_alu_result % 64); 
                                 if(MEM_cache_bus_reqack == 1) begin
                                     _MEM_status = 1;
                                     _MEM_read_value = 0;
@@ -756,7 +771,7 @@ module top
                             else begin
                                 MEM_arbiter_bus_reqcyc = 1;
                                 MEM_arbiter_bus_reqtag = {1'b1,`SYSBUS_MEMORY,8'b0};
-                                MEM_arbiter_bus_req = _MEM_alu_result - (_MEM_alu_result % 64); //TODO: find and floor requested address
+                                MEM_arbiter_bus_req = _MEM_alu_result - (_MEM_alu_result % 64); 
                                 if(MEM_arbiter_bus_reqack == 1) begin
                                     _MEM_status = 1;
                                     _MEM_read_value = 0;
@@ -835,7 +850,7 @@ module top
                                 if(cache == 1) begin
                                     MEM_cache_bus_reqcyc = 1;
                                     MEM_cache_bus_reqtag = {1'b0,`SYSBUS_MEMORY,8'b0};
-                                    MEM_cache_bus_req = _MEM_alu_result - (_MEM_alu_result%64);//64'h0; //TODO: find and floor requested address
+                                    MEM_cache_bus_req = _MEM_alu_result - (_MEM_alu_result%64);
                                     if(MEM_cache_bus_reqack == 1) begin
                                         _MEM_status = 3;
                                         MEM_next_ptr = 0;
@@ -847,7 +862,7 @@ module top
                                 else begin
                                     MEM_arbiter_bus_reqcyc = 1;
                                     MEM_arbiter_bus_reqtag = {1'b0,`SYSBUS_MEMORY,8'b0};
-                                    MEM_arbiter_bus_req = _MEM_alu_result - (_MEM_alu_result%64);//64'h0; //TODO: find and floor requested address
+                                    MEM_arbiter_bus_req = _MEM_alu_result - (_MEM_alu_result%64);
                                     if(MEM_arbiter_bus_reqack == 1) begin
                                         _MEM_status = 3;
                                         MEM_next_ptr = 0;
@@ -906,19 +921,43 @@ module top
         _WB_valid_instr = MEM_valid_instr;
  	ecall_now = 0;
         pending_write = 0;
+        MEM_cache_inv_req = 0;
         // NOTE: There shouldn't be any stall on WB. 
   
-        // If there's ecall going on...
-        if(ecall_count > 0) begin
-        
-            _ecall_count = ecall_count - 1;
-            if(_ecall_count == 0) begin
-                _ecall_stallstate = 0;
+        if(ecall_later) begin
+            // Only when arbiter is ready (because invalidation request might come)
+    	    if(arbiter_ready) begin
+	        ecall_now = 1;
+	        _ecall_later = 0;
+                _ecall_count = 4;
             end
-                
+        end
+        else if(ecall_count > 0) begin
+	    //arbiter now free and DRAM can receive respack.
+            if(bus_resptag == 24'h800 && bus_respcyc) begin
+	        
+		if(cache) begin
+                    MEM_cache_inv_req = bus_resp;
+                    if(MEM_cache_invalidated) begin
+		        bus_respack = 1; 
+                    end
+                end else begin
+                    bus_respack = 1;
+                end
+
+            end 
+            else begin 
+	        _ecall_count = ecall_count - 1;
+
+                if(_ecall_count == 0) begin
+                    _ecall_stallstate = 0;
+                end
+            end
+    
             _WB_write_reg = 10;
             _WB_write_val = WB_a0;
             _WB_write_sig = 1;
+
         end
         // Else if the instr is not valid
         else if(!_WB_valid_instr) begin
@@ -966,8 +1005,12 @@ module top
             end
 
             if(_WB_ecall) begin
-                _ecall_count = 4;
-	        ecall_now = 1;
+		if(arbiter_ready) begin
+	        	ecall_now = 1;
+                        _ecall_count = 4;
+		end else begin
+			_ecall_later = 1;
+		end
             end
 
             if(_WB_mem_access == `MEM_WRITE) begin
@@ -980,7 +1023,7 @@ module top
             end
 
 	    //$display("%h",WB_pc);
-            if(jumpbit) $display("jump to %h", jump_to_addr);
+            //if(jumpbit) $display("jump to %h", jump_to_addr);
 
         end
 
@@ -1065,6 +1108,8 @@ module top
         mem_stallstate <= _mem_stallstate;
         ecall_stallstate <= _ecall_stallstate;
         ecall_count <= _ecall_count;
+        ecall_later <= _ecall_later;
+
         if (ecall_now) begin
             do_ecall(_WB_a7, _WB_a0, _WB_a1, _WB_a2, _WB_a3, _WB_a4, _WB_a5, _WB_a6, _WB_a0);
         end

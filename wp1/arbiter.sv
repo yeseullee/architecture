@@ -26,6 +26,7 @@ module arbiter
 	(
 		input  clk,
 		input reset,
+                output ready, // 1 if the arbiter is ready to receive req.
 
 		//input 1 (instruction fetch)
 		input reqcyc0,
@@ -74,13 +75,13 @@ module arbiter
 	logic channel;
 	logic _channel;
 
-
 	//NOTE: multiple always comb blocks used to keep verilator happy
 	//  processor resp, ack, and cyc variables cannot be set or used within the same block
    
 	//accept requests and values from the processor: INITIAL, ACCEPT, READVAL
 	always_comb begin
 		_channel = channel;
+		ready = 0;
 		case(state)
 			INITIAL: begin
 					//Initialize the system
@@ -88,6 +89,7 @@ module arbiter
 				end
 			ACCEPT: begin
 					//wait for requests from the processor
+					ready = 1;
 					_content = 0;
 					//receiving requeston on channel 0
 					if(reqcyc0 == 1) begin
@@ -112,10 +114,6 @@ module arbiter
 						next_state = ACCEPT;
 					end
 
-                                        //if for some odd reason there's bus_resp...
-                                        if(bus_respcyc) begin  // TODO: May need to put it in cache also.
-                                            bus_respack = 1;
-                                        end
 				end
 			READVAL: begin
 					//read value to be written from processor
