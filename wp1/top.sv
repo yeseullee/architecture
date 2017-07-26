@@ -305,7 +305,7 @@ module top
     logic [BUS_TAG_WIDTH-1:0] IF_cache_bus_resptag;
     logic [8:0] IF_cache_ptr;
     logic IF_cache_invalidated; // There's no use. just a place-holder.
-    logic [BUS_DATA_WIDTH-1:0] IF_cache_inv_req;
+    logic [BUS_DATA_WIDTH-1:0] IF_cache_inv_req; // There's no use. just a place-holder.
 
     logic MEM_cache_bus_reqcyc;
     logic MEM_cache_bus_respack;
@@ -317,6 +317,7 @@ module top
     logic [BUS_TAG_WIDTH-1:0] MEM_cache_bus_resptag;
     logic [8:0] MEM_cache_ptr;
     logic MEM_cache_invalidated; // 1 == cache is invalidated upon request.
+    logic _MEM_cache_invalidated;
     logic [BUS_DATA_WIDTH-1:0] MEM_cache_inv_req;
 
     cache IF_cache_mod (
@@ -342,7 +343,7 @@ module top
         .p_bus_reqtag(MEM_cache_bus_reqtag), .p_bus_respack(MEM_cache_bus_respack),
         .m_bus_reqack(MEM_arbiter_bus_reqack), .m_bus_respcyc(MEM_arbiter_bus_respcyc), 
         .m_bus_resp(MEM_arbiter_bus_resp), .m_bus_resptag(MEM_arbiter_bus_resptag),
-        .mem_ptr(MEM_arbiter_ptr), .invalidated(MEM_cache_invalidated),  
+        .mem_ptr(MEM_arbiter_ptr), .invalidated(_MEM_cache_invalidated),  
 
         //OUTPUTS
         .p_bus_reqack(MEM_cache_bus_reqack), .p_bus_respcyc(MEM_cache_bus_respcyc), 
@@ -372,6 +373,7 @@ module top
     logic [BUS_TAG_WIDTH-1:0] MEM_arbiter_bus_resptag;
     logic [8:0] IF_arbiter_ptr;
     logic [8:0] MEM_arbiter_ptr;
+    logic _arbiter_ready;
     logic arbiter_ready;
 
     arbiter arbiter_mod (
@@ -389,7 +391,7 @@ module top
         .resp1(MEM_arbiter_bus_resp), .respcyc1(MEM_arbiter_bus_respcyc), 
         .resptag1(MEM_arbiter_bus_resptag), .reqack1(MEM_arbiter_bus_reqack),
         .bus_req(bus_req), .bus_reqcyc(bus_reqcyc), .bus_reqtag(bus_reqtag), .bus_respack(bus_respack),
-        .ptr0(IF_arbiter_ptr), .ptr1(MEM_arbiter_ptr), .ready(arbiter_ready)
+        .ptr0(IF_arbiter_ptr), .ptr1(MEM_arbiter_ptr), .ready(_arbiter_ready)
     );
 
     
@@ -614,7 +616,7 @@ module top
         end
 
         invalidate = 0;
-        if(bus_respcyc == 1 && bus_resptag == 24'h800) begin
+        if(bus_respcyc == 1 && bus_resptag == 12'h800) begin
             invalidate = 1;
         end
 
@@ -934,7 +936,7 @@ module top
         end
         else if(ecall_count > 0) begin
 	    //arbiter now free and DRAM can receive respack.
-            if(bus_resptag == 24'h800 && bus_respcyc) begin
+            if(bus_resptag == 12'h800 && bus_respcyc) begin
 	        
 		if(cache) begin
                     MEM_cache_inv_req = bus_resp;
@@ -1109,6 +1111,10 @@ module top
         ecall_stallstate <= _ecall_stallstate;
         ecall_count <= _ecall_count;
         ecall_later <= _ecall_later;
+
+        // To avoid UNOPTFLAT
+        arbiter_ready <= _arbiter_ready;
+        MEM_cache_invalidated <= _MEM_cache_invalidated;
 
         if (ecall_now) begin
             do_ecall(_WB_a7, _WB_a0, _WB_a1, _WB_a2, _WB_a3, _WB_a4, _WB_a5, _WB_a6, _WB_a0);
