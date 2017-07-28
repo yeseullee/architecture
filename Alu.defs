@@ -1,0 +1,45 @@
+`define NOTHING 1'd0
+`define ADD 1'd1
+`define SUB 11'd2
+`define MUL 11'd3
+
+`define DIV 11'd4
+`define XOR 11'd5
+`define AND 11'd6
+`define OR 11'd7
+`define REM 11'd8
+`define NOT 11'd9
+`define SLL 11'd10
+`define SRL 11'd11
+`define SRA 11'd12
+
+`define LESS 11'd13
+`define LESSU 11'd14
+`define SLTIU 11'd15
+
+`define EQUAL 11'd16
+`define NEQ 11'd17
+`define GTE 11'd18
+`define GTEU 11'd19
+
+`define MULH 11'd20
+`define MULHU 11'd21
+`define MULHSU 11'd22
+
+`define DIVU 11'd23
+`define REMU 11'd24
+
+`define IMMVAL 11'd25
+
+`define JUMP_UNCOND 11'd30
+
+`define COND 2'd1
+`define UNCOND 2'd2
+
+`define NOTYPE 4'd0
+`define RTYPE 4'd1
+`define ITYPE 4'd2
+`define STYPE 4'd3
+`define SBTYPE 4'd4
+`define UTYPE 4'd5
+`define UJTYPE 4'd6

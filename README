@@ -1,0 +1,54 @@
+This is a RISC-V 64IM processor. It has 5+ stage pipeline (Instruction Fetch, Decode, Read, Execute, Memory, Write Back).
+  
+
+0) By default I have set this processor to use set-associative caches.
+1) In top.sv, go to line 297 to use/remove cache.
+2) In cache.sv, go to line 82 to set 0 for direct-mapped cache or 1 for set-associative cache. 
+
+
+This was for a graduate course project (CSE 502 Computer Architecture).
+I have worked with a partner, Shanshan Chen, until the end of the Spring 17 semester (mid-May), 
+and afterwards worked on and completed this project by myself at the end of July 2017. 
+
+
+- Yeseul Lee - 
+
+
+
+-----------------------------------------------------------
+Some instructions for the project
+
+1. Building/Running your simulator code
+
+   Following are the commands to build and run the code:
+
+   > make       // build code
+   > make run   // run code
+
+   The result of running the code will be a 'trace.vcd' waveform
+   file. You can view it using 'gtkwave' or 'dinotrace' by tunneling
+   X11 through ssh, or you can download the file to your local machine
+   and view it there.
+
+   To change the program binary which you are decoding, edit the
+   following line in Makefile:
+   
+   RUNELF=...
+
+
+2. Viewing the trace.vcd waveform
+
+   If you have logged in to the server using the -Y or -X option, you
+   can view waveforms using the following command:
+
+   > gtkwave trace.vcd
+
+   (you can also use dinotrace, or download the .vcd to view it)
+
+
+3. Submitting your code
+   
+   Type the following command in your project directory. It will sign
+   and submit your code to us:
+
+  > make submit
